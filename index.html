@@ -121,8 +121,13 @@
       font-weight:650;
     }
     .form-field input,
-    .form-field select {
+    .form-field select,
+    .form-field textarea {
       width:100%;
+    }
+    .form-field textarea {
+      min-height:84px;
+      resize:vertical;
     }
     .tabs, .category-tabs { display:flex; gap:8px; margin:16px 0; overflow:auto; padding-bottom:2px; }
     .tabs button.active, .category-tabs button.active { background:var(--main); color:white; border-color:var(--main); }
@@ -397,6 +402,14 @@
       </div>
       <div class="form-grid">
         <div class="form-field">
+          <label for="newItemShare">京东/淘宝分享链接或分享文案</label>
+          <textarea id="newItemShare" onpaste="setTimeout(parseItemShare, 0)" placeholder="可粘贴京东、淘宝的分享文案；如果只粘贴纯链接，部分平台会因跨站限制无法自动拿到名称和价格"></textarea>
+          <div class="row" style="margin-top:8px">
+            <button onclick="parseItemShare()">分析填入</button>
+            <span id="itemParseStatus" class="small"></span>
+          </div>
+        </div>
+        <div class="form-field">
           <label for="newItemName">设备名称</label>
           <input id="newItemName" placeholder="例如：洗碗机">
         </div>
@@ -430,6 +443,7 @@ let currentTab = 'budget';
 let activeCategory = '空调';
 let autoPushTimer = null;
 let budgetDetailsOpen = false;
+let itemModalPlanId = null;
 let data = normalizeData(loadLocal() || defaultData());
 
 function defaultData(){
@@ -496,6 +510,7 @@ function normalizeData(next){
     item.category = item.category || '空调';
     item.unitPrice = Number(item.unitPrice || 0);
     item.note = item.note || '';
+    item.link = item.link || '';
   });
 
   const itemById = Object.fromEntries(normalized.items.map(item => [item.id, item]));
@@ -720,6 +735,7 @@ function renderPlanCard(plan, min){
     ${(plan.rows || []).map(row => renderPlanRow(plan, row)).join('')}
     <div class="row" style="margin-top:10px">
       <button onclick="addRow(${jsArg(plan.id)})">添加设备</button>
+      <button onclick="openItemModal(${jsArg(plan.id)})">新增设备价格</button>
       <button class="${isSelected ? 'selected' : 'primary'}" onclick="selectBudgetPlan(${jsArg(plan.category)}, ${jsArg(plan.id)})">${isSelected ? '已加入整屋预算' : '加入整屋预算'}</button>
     </div>
   </section>`;
@@ -800,19 +816,82 @@ function selectBudgetPlan(category, planId){
 function renderItemModalCategories(){
   document.getElementById('newItemCategory').innerHTML = categories().map(category => `<option value="${esc(category)}" ${category === activeCategory ? 'selected' : ''}>${esc(category)}</option>`).join('');
 }
-function openItemModal(){
+function openItemModal(planId = null){
+  const plan = data.plans.find(next => next.id === planId);
+  itemModalPlanId = plan?.id || null;
+  if (plan) activeCategory = plan.category;
   renderItemModalCategories();
+  document.getElementById('itemModalTitle').textContent = plan ? '新增设备价格并加入方案' : '新增设备';
+  document.getElementById('newItemShare').value = '';
   document.getElementById('newItemName').value = '';
   document.getElementById('newItemCategory').value = activeCategory;
   document.getElementById('newItemPrice').value = '';
   document.getElementById('newItemNote').value = '';
+  document.getElementById('itemParseStatus').textContent = '';
   document.getElementById('itemModalBackdrop').classList.remove('hidden');
-  setTimeout(() => document.getElementById('newItemName').focus(), 0);
+  setTimeout(() => document.getElementById('newItemShare').focus(), 0);
 }
 function closeItemModal(event){
   const backdrop = document.getElementById('itemModalBackdrop');
   if (event && event.target !== backdrop) return;
+  itemModalPlanId = null;
   backdrop.classList.add('hidden');
+}
+function extractFirstUrl(text){
+  return (String(text || '').match(/https?:\/\/[^\s，。"'<>]+/i) || [])[0] || '';
+}
+function parsePriceFromText(text){
+  const value = String(text || '').match(/(?:¥|￥|RMB|CNY)\s*([0-9]+(?:\.[0-9]{1,2})?)/i)
+    || String(text || '').match(/([0-9]+(?:\.[0-9]{1,2})?)\s*元/);
+  return value ? Number(value[1]) : 0;
+}
+function parseNameFromText(text){
+  const raw = String(text || '');
+  const quoted = [...raw.matchAll(/[「《【]([^「」《》【】]{4,80})[」》】]/g)]
+    .map(match => match[1].trim())
+    .find(part => !/淘宝|天猫|京东|复制|打开|分享|链接/.test(part));
+  if (quoted) return quoted;
+  const cleaned = raw
+    .replace(/https?:\/\/[^\s，。"'<>]+/ig, ' ')
+    .replace(/(?:¥|￥|RMB|CNY)\s*[0-9]+(?:\.[0-9]{1,2})?/ig, ' ')
+    .replace(/[0-9]+(?:\.[0-9]{1,2})?\s*元/g, ' ')
+    .replace(/复制|打开|淘宝|天猫|京东|分享|链接|下单|领券|口令|【】|「」/g, ' ')
+    .replace(/[￥¥#*~|]/g, ' ');
+  return cleaned.split(/[\n\r，。；;]/)
+    .map(part => part.trim())
+    .filter(part => part.length >= 4 && !/^https?:/i.test(part))
+    .sort((a,b) => b.length - a.length)[0] || '';
+}
+function parseItemShare(){
+  const share = document.getElementById('newItemShare').value.trim();
+  const status = document.getElementById('itemParseStatus');
+  if (!share) {
+    status.textContent = '先粘贴分享文案或链接。';
+    status.className = 'small warn';
+    return;
+  }
+  const parsed = {
+    name: parseNameFromText(share),
+    price: parsePriceFromText(share),
+    url: extractFirstUrl(share)
+  };
+  if (parsed.name) document.getElementById('newItemName').value = parsed.name;
+  if (parsed.price) document.getElementById('newItemPrice').value = parsed.price;
+  if (parsed.url && !document.getElementById('newItemNote').value.includes(parsed.url)) {
+    document.getElementById('newItemNote').value = document.getElementById('newItemNote').value.trim()
+      ? document.getElementById('newItemNote').value.trim() + ' ' + parsed.url
+      : parsed.url;
+  }
+  if (parsed.name || parsed.price) {
+    status.textContent = `已识别${parsed.name ? '名称' : ''}${parsed.name && parsed.price ? '和' : ''}${parsed.price ? '价格' : ''}。`;
+    status.className = 'small ok';
+  } else if (parsed.url) {
+    status.textContent = '只识别到链接。纯链接通常无法在静态网页中跨站读取商品名和价格，请粘贴完整分享文案或手填。';
+    status.className = 'small warn';
+  } else {
+    status.textContent = '没有识别到名称或价格，可以手动填写。';
+    status.className = 'small warn';
+  }
 }
 function createItemFromModal(){
   const name = document.getElementById('newItemName').value.trim() || '新设备';
@@ -821,7 +900,13 @@ function createItemFromModal(){
   const note = document.getElementById('newItemNote').value.trim();
   if (!data.categories.includes(category)) data.categories.push(category);
   activeCategory = category;
-  data.items.push({ id:uid('item'), name, category, unitPrice, note });
+  const item = { id:uid('item'), name, category, unitPrice, note, link:extractFirstUrl(document.getElementById('newItemShare').value) };
+  data.items.push(item);
+  const plan = data.plans.find(next => next.id === itemModalPlanId);
+  if (plan) {
+    plan.rows.push({ id:uid('row'), itemId:item.id, qty:1 });
+  }
+  itemModalPlanId = null;
   document.getElementById('itemModalBackdrop').classList.add('hidden');
   save();
 }
