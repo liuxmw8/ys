@@ -118,6 +118,100 @@
       .summary-line strong { justify-self:start; }
     }
     @media (max-width:640px) {
+      .wrap { padding:18px 10px 44px; }
+      h1 { font-size:24px; }
+      .tabs, .category-tabs { gap:6px; }
+      .tabs button, .category-tabs button { padding:8px 10px; }
+      .between { align-items:stretch; flex-direction:column; }
+      .budget-table-wrap { overflow:visible; }
+      .budget-table, .budget-table tbody, .budget-table tr, .budget-table td { display:block; width:100%; }
+      .budget-table thead { display:none; }
+      .budget-table tbody { display:grid; gap:12px; }
+      .budget-table tr {
+        border:1px solid var(--line);
+        border-radius:8px;
+        background:#fff;
+        padding:12px;
+      }
+      .budget-table td {
+        border-bottom:0;
+        padding:7px 0;
+      }
+      .budget-table td::before {
+        content:attr(data-label);
+        display:block;
+        margin-bottom:5px;
+        color:var(--muted);
+        font-size:12px;
+        font-weight:650;
+      }
+      .budget-table td:first-child {
+        padding-top:0;
+      }
+      .budget-table td:first-child::before,
+      .budget-table td:last-child::before {
+        display:none;
+      }
+      .budget-table select,
+      .budget-table button {
+        width:100%;
+        min-height:42px;
+      }
+      .budget-table td:nth-child(3) strong {
+        font-size:20px;
+      }
+      .budget-total { font-size:22px; }
+      .summary-line {
+        grid-template-columns:1fr;
+        gap:4px;
+      }
+      .summary-line strong {
+        justify-self:start;
+        font-size:18px;
+      }
+      .plan-head {
+        grid-template-columns:1fr;
+      }
+      .plan-head input,
+      .plan-head select,
+      .plan-head button {
+        width:100%;
+        min-height:42px;
+      }
+      .plan-head button {
+        justify-self:stretch;
+      }
+      .plan-total {
+        align-items:flex-start;
+        flex-direction:column;
+        gap:6px;
+      }
+      .line {
+        grid-template-columns:88px minmax(0,1fr) 42px;
+        gap:8px;
+        border:1px solid var(--line);
+        border-radius:8px;
+        padding:10px;
+        background:#fafbfc;
+      }
+      .line select {
+        grid-column:1 / -1;
+        width:100%;
+        min-height:42px;
+      }
+      .line input,
+      .line button {
+        width:100%;
+        min-height:42px;
+      }
+      .line > div {
+        align-self:center;
+        min-width:0;
+        overflow-wrap:anywhere;
+      }
+      .plan-grid .row button {
+        flex:1 1 150px;
+      }
       .item-table-wrap { overflow:visible; }
       .item-table, .item-table tbody, .item-table tr, .item-table td { display:block; width:100%; }
       .item-table thead { display:none; }
@@ -390,21 +484,21 @@ function renderBudget(){
           <h2>整屋方案组合</h2>
           <button class="primary" onclick="switchTab('plans')">编辑分类方案</button>
         </div>
-        <div class="table-wrap">
-          <table>
+        <div class="table-wrap budget-table-wrap">
+          <table class="budget-table">
             <thead><tr><th>分类</th><th>选择方案</th><th>小计</th><th></th></tr></thead>
             <tbody>
               ${rows.map(row => {
                 const plans = plansByCategory(row.category);
                 return `<tr>
-                  <td><strong>${esc(row.category)}</strong></td>
-                  <td>
+                  <td data-label="分类"><strong>${esc(row.category)}</strong></td>
+                  <td data-label="选择方案">
                     <select style="width:100%" onchange="selectBudgetPlan(${jsArg(row.category)}, this.value)">
                       <option value="">不选择</option>
                       ${plans.map(plan => `<option value="${esc(plan.id)}" ${row.plan?.id === plan.id ? 'selected' : ''}>${esc(plan.name)}（${money(planTotal(plan))}）</option>`).join('')}
                     </select>
                   </td>
-                  <td><strong>${money(row.total)}</strong></td>
+                  <td data-label="小计"><strong>${money(row.total)}</strong></td>
                   <td><button onclick="focusCategory(${jsArg(row.category)})">查看</button></td>
                 </tr>`;
               }).join('')}
