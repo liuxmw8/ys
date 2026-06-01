@@ -70,10 +70,30 @@
     .stat .label { color:var(--muted); font-size:13px; }
     .stat .value { font-size:25px; font-weight:800; margin-top:8px; line-height:1.2; }
     .stat .value.compact { font-size:17px; line-height:1.45; }
+    .stat.clickable { cursor:pointer; transition:transform .12s ease, box-shadow .12s ease; }
+    .stat.clickable:focus-visible { outline:3px solid rgba(31,58,95,.22); outline-offset:2px; }
+    .stat.clickable:hover { transform:translateY(-1px); box-shadow:0 6px 18px rgba(15,23,42,.08); }
     .stat-line { display:flex; justify-content:space-between; gap:10px; align-items:baseline; }
     .stat-delta { white-space:nowrap; }
     .stat-delta.save { color:var(--ok); }
     .stat-delta.add { color:var(--danger); }
+    .detail-panel { margin:-4px 0 16px; }
+    .detail-panel-head { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:8px; }
+    .item-lines { display:grid; gap:8px; }
+    .item-line {
+      display:grid;
+      grid-template-columns:1fr auto;
+      gap:12px;
+      align-items:start;
+      border-bottom:1px solid var(--line);
+      padding:10px 0;
+    }
+    .item-line:last-child { border-bottom:0; }
+    .item-line strong { font-size:16px; }
+    .item-meta { margin-top:4px; color:var(--muted); font-size:13px; line-height:1.5; }
+    .summary-money { text-align:right; }
+    .summary-money strong { display:block; }
+    .summary-money span { color:var(--muted); font-size:12px; }
     .tabs, .category-tabs { display:flex; gap:8px; margin:16px 0; overflow:auto; padding-bottom:2px; }
     .tabs button.active, .category-tabs button.active { background:var(--main); color:white; border-color:var(--main); }
     .category-tabs button { background:#fff; }
@@ -166,6 +186,9 @@
         font-size:20px;
       }
       .budget-total { font-size:22px; }
+      .detail-panel { margin:0 0 14px; }
+      .detail-panel-head { align-items:flex-start; flex-direction:column; }
+      .item-line { grid-template-columns:1fr; gap:4px; }
       .summary-line {
         grid-template-columns:1fr;
         gap:4px;
@@ -270,10 +293,15 @@
     </header>
 
     <section class="grid">
-      <div class="card stat"><div class="label">整屋已选预算</div><div id="wholeBudget" class="value">￥0</div></div>
+      <div class="card stat clickable" id="wholeBudgetCard" role="button" tabindex="0" onclick="toggleBudgetDetails()" onkeydown="handleBudgetCardKey(event)">
+        <div class="label">整屋已选预算</div>
+        <div id="wholeBudget" class="value">￥0</div>
+        <div id="wholeBudgetHint" class="small">点击查看设备明细</div>
+      </div>
       <div class="card stat"><div class="label">未选分类</div><div id="missingCategories" class="value compact">-</div></div>
       <div class="card stat"><div class="label">当前分类预算差异</div><div id="categoryBudgetInsight" class="value compact">-</div></div>
     </section>
+    <section id="selectedItemsPanel" class="card detail-panel hidden"></section>
 
     <nav class="tabs">
       <button id="tabBudget" class="active" onclick="switchTab('budget')">整屋预算</button>
@@ -337,6 +365,7 @@ const DEFAULT_CATEGORIES = ['空调','净水','厨电','卫浴','智能家居','
 let currentTab = 'budget';
 let activeCategory = '空调';
 let autoPushTimer = null;
+let budgetDetailsOpen = false;
 let data = normalizeData(loadLocal() || defaultData());
 
 function defaultData(){
@@ -459,6 +488,27 @@ function selectedSummaries(){
   });
 }
 function wholeTotal(){ return selectedSummaries().reduce((sum,row) => sum + row.total, 0); }
+function percent(part, total){ return total ? (Number(part || 0) / total * 100).toFixed(1) + '%' : '0.0%'; }
+function selectedItemLines(){
+  const map = itemMap();
+  return selectedSummaries()
+    .filter(row => row.plan)
+    .flatMap(summary => (summary.plan.rows || []).map(row => {
+      const item = map[row.itemId];
+      const qty = Number(row.qty || 0);
+      const unitPrice = Number(item?.unitPrice || 0);
+      return {
+        category: summary.category,
+        planName: summary.plan.name,
+        itemName: item?.name || '未命名设备',
+        qty,
+        unitPrice,
+        total: unitPrice * qty
+      };
+    }))
+    .filter(line => line.total > 0)
+    .sort((a,b) => b.total - a.total);
+}
 
 function render(){
   renderStats();
@@ -474,8 +524,11 @@ function renderStats(){
   const lowest = sorted[0];
   const highest = sorted[sorted.length - 1];
   document.getElementById('wholeBudget').textContent = money(wholeTotal());
+  document.getElementById('wholeBudgetCard').setAttribute('aria-expanded', String(budgetDetailsOpen));
+  document.getElementById('wholeBudgetHint').textContent = budgetDetailsOpen ? '点击收起设备明细' : '点击查看设备明细';
   document.getElementById('missingCategories').textContent = missing.length ? missing.join('、') : '已全部选择';
   document.getElementById('categoryBudgetInsight').innerHTML = renderCategoryBudgetInsight(lowest, highest, baseline);
+  renderSelectedItemsPanel();
 }
 function renderCategoryBudgetInsight(lowest, highest, baseline){
   if (!lowest) return '-';
@@ -488,6 +541,38 @@ function renderCategoryBudgetInsight(lowest, highest, baseline){
   }
   return rows.join('');
 }
+function renderSelectedItemsPanel(){
+  const panel = document.getElementById('selectedItemsPanel');
+  panel.classList.toggle('hidden', !budgetDetailsOpen);
+  if (!budgetDetailsOpen) {
+    panel.innerHTML = '';
+    return;
+  }
+  const lines = selectedItemLines();
+  panel.innerHTML = `
+    <div class="detail-panel-head">
+      <h2>已选设备明细</h2>
+      <div class="small">${lines.length} 项，按金额从高到低排列</div>
+    </div>
+    ${lines.length ? `<div class="item-lines">${lines.map(line => `
+      <div class="item-line">
+        <div>
+          <strong>${esc(line.itemName)}</strong>
+          <div class="item-meta">${esc(line.category)} · ${esc(line.planName)}${line.qty !== 1 ? ` · 数量 ${line.qty}` : ''}</div>
+        </div>
+        <strong>${money(line.total)}</strong>
+      </div>`).join('')}</div>` : '<div class="empty">还没有已选设备。</div>'}`;
+}
+function toggleBudgetDetails(){
+  budgetDetailsOpen = !budgetDetailsOpen;
+  renderStats();
+}
+function handleBudgetCardKey(event){
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    toggleBudgetDetails();
+  }
+}
 function renderCategoryTabs(){
   return `<nav class="category-tabs">
     ${categories().map(category => `<button class="${category === activeCategory ? 'active' : ''}" onclick="setActiveCategory(${jsArg(category)})">${esc(category)}</button>`).join('')}
@@ -496,6 +581,7 @@ function renderCategoryTabs(){
 }
 function renderBudget(){
   const rows = selectedSummaries();
+  const total = wholeTotal();
   document.getElementById('budgetView').innerHTML = `
     <section class="budget-layout">
       <div class="card">
@@ -533,7 +619,7 @@ function renderBudget(){
             <div class="summary-line">
               <span>${esc(row.category)}</span>
               <span>${esc(row.plan.name)}</span>
-              <strong>${money(row.total)}</strong>
+              <div class="summary-money"><strong>${money(row.total)}</strong><span>占比 ${percent(row.total, total)}</span></div>
             </div>`).join('') : '<div class="empty">还没有选择任何分类方案。</div>'}
         </div>
       </aside>
