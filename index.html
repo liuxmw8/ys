@@ -3,284 +3,661 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>装修设备方案预算对比</title>
+  <title>装修方案组合预算</title>
   <style>
-    :root { --bg:#f6f7fb; --card:#fff; --text:#111827; --muted:#6b7280; --line:#e5e7eb; --main:#111827; --danger:#dc2626; --ok:#047857; --warn:#b45309; }
-    * { box-sizing: border-box; }
-    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Arial,sans-serif; background:var(--bg); color:var(--text); }
-    .wrap { max-width:1180px; margin:0 auto; padding:28px 16px 60px; }
-    header { display:flex; justify-content:space-between; gap:16px; align-items:flex-end; margin-bottom:20px; }
-    h1 { margin:0; font-size:28px; }
-    h2 { margin:0 0 12px; font-size:20px; }
-    p { margin:8px 0 0; color:var(--muted); }
-    .card { background:var(--card); border:1px solid var(--line); border-radius:18px; padding:18px; box-shadow:0 4px 16px rgba(15,23,42,.04); }
-    .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin:18px 0; }
-    .stat .label { color:var(--muted); font-size:13px; }
-    .stat .value { font-size:26px; font-weight:800; margin-top:8px; }
-    .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    :root {
+      --bg:#f4f6f8;
+      --card:#fff;
+      --text:#17202a;
+      --muted:#667085;
+      --line:#dfe4ea;
+      --main:#1f3a5f;
+      --main-soft:#e8eef6;
+      --accent:#0f766e;
+      --danger:#c2410c;
+      --ok:#047857;
+      --warn:#a16207;
+    }
+    * { box-sizing:border-box; }
+    body {
+      margin:0;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Arial,sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+    .wrap { max-width:1220px; margin:0 auto; padding:24px 16px 56px; }
+    header { display:flex; justify-content:space-between; gap:16px; align-items:flex-end; margin-bottom:18px; }
+    h1 { margin:0; font-size:28px; letter-spacing:0; }
+    h2 { margin:0 0 12px; font-size:20px; letter-spacing:0; }
+    h3 { margin:0; font-size:16px; letter-spacing:0; }
+    p { margin:8px 0 0; color:var(--muted); line-height:1.6; }
     button, input, select { font:inherit; }
-    button { border:1px solid var(--line); background:white; border-radius:12px; padding:9px 13px; cursor:pointer; }
+    button {
+      border:1px solid var(--line);
+      background:white;
+      border-radius:8px;
+      padding:9px 12px;
+      cursor:pointer;
+      min-height:38px;
+      white-space:nowrap;
+    }
     button.primary { background:var(--main); color:white; border-color:var(--main); }
+    button.selected { background:var(--accent); color:white; border-color:var(--accent); }
     button.danger { color:var(--danger); }
-    button:hover { filter:brightness(.96); }
-    input, select { border:1px solid var(--line); border-radius:12px; padding:9px 10px; background:white; min-width:0; }
+    button:hover { filter:brightness(.97); }
+    input, select {
+      border:1px solid var(--line);
+      border-radius:8px;
+      padding:9px 10px;
+      background:white;
+      min-width:0;
+    }
     input[type="number"] { width:110px; }
-    .tabs { display:flex; gap:8px; margin:18px 0; }
-    .tabs button.active { background:var(--main); color:white; }
     table { width:100%; border-collapse:collapse; }
     th, td { border-bottom:1px solid var(--line); padding:10px 6px; text-align:left; vertical-align:middle; }
-    th { color:var(--muted); font-weight:600; font-size:13px; }
+    th { color:var(--muted); font-weight:650; font-size:13px; }
+    code { background:#eef2f7; padding:2px 5px; border-radius:6px; }
+    .card {
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:8px;
+      padding:18px;
+      box-shadow:0 4px 14px rgba(15,23,42,.04);
+    }
+    .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .between { display:flex; justify-content:space-between; gap:12px; align-items:center; }
+    .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:16px 0; }
+    .stat .label { color:var(--muted); font-size:13px; }
+    .stat .value { font-size:25px; font-weight:800; margin-top:8px; line-height:1.2; }
+    .tabs, .category-tabs { display:flex; gap:8px; margin:16px 0; overflow:auto; padding-bottom:2px; }
+    .tabs button.active, .category-tabs button.active { background:var(--main); color:white; border-color:var(--main); }
+    .category-tabs button { background:#fff; }
+    .budget-layout { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(320px,.75fr); gap:14px; align-items:start; }
+    .budget-total {
+      border-top:2px solid var(--text);
+      margin-top:8px;
+      padding-top:12px;
+      display:flex;
+      justify-content:space-between;
+      align-items:end;
+      font-size:20px;
+      font-weight:800;
+    }
+    .summary-list { display:grid; gap:10px; }
+    .summary-line {
+      display:grid;
+      grid-template-columns:96px 1fr auto;
+      gap:10px;
+      align-items:center;
+      padding:10px 0;
+      border-bottom:1px solid var(--line);
+    }
     .plan-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
-    .plan-title { width:100%; font-weight:700; font-size:17px; }
-    .plan-head { display:flex; gap:8px; justify-content:space-between; align-items:flex-start; }
-    .total { display:flex; justify-content:space-between; align-items:end; border-bottom:1px solid var(--line); padding:12px 0; margin-bottom:10px; }
-    .total .money { font-size:26px; font-weight:800; }
+    .plan-head { display:grid; grid-template-columns:1fr 138px auto auto; gap:8px; align-items:start; }
+    .plan-title { width:100%; font-weight:750; font-size:16px; }
+    .plan-total { display:flex; justify-content:space-between; align-items:end; border-bottom:1px solid var(--line); padding:12px 0; margin-bottom:10px; }
+    .plan-total .money { font-size:25px; font-weight:800; }
     .line { display:grid; grid-template-columns:1fr 90px 130px 44px; gap:8px; align-items:center; margin:8px 0; }
     .sync-box { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
     .small { font-size:13px; color:var(--muted); }
+    .muted { color:var(--muted); }
     .hidden { display:none; }
     .status { font-size:13px; color:var(--muted); margin-top:8px; }
     .ok { color:var(--ok); }
     .warn { color:var(--warn); }
-    code { background:#f1f5f9; padding:2px 5px; border-radius:6px; }
+    .empty { padding:22px; border:1px dashed var(--line); border-radius:8px; color:var(--muted); background:#fafbfc; }
     .help { line-height:1.8; }
-    @media (max-width:900px) { header,.sync-box { display:block; } .grid,.plan-grid { grid-template-columns:1fr; } .line { grid-template-columns:1fr 80px 110px 42px; } }
+    .table-wrap { overflow:auto; }
+    @media (max-width:980px) {
+      header, .budget-layout, .sync-box { display:block; }
+      .grid, .plan-grid { grid-template-columns:1fr; }
+      .card { padding:14px; }
+      .plan-head { grid-template-columns:1fr 120px; }
+      .line { grid-template-columns:1fr 76px 104px 40px; }
+      .summary-line { grid-template-columns:76px 1fr; }
+      .summary-line strong { justify-self:start; }
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
     <header>
       <div>
-        <h1>装修设备方案预算对比</h1>
-        <p>用于比较一拖三中央空调、风管机+挂机、净水、厨电、智能家居等购买方案。支持 GitHub Pages 托管 + Gist 数据同步。</p>
+        <h1>装修方案组合预算</h1>
+        <p>按空调、净水、厨电、卫浴、智能家居、家具等用途分类比较方案，并把每类选中的方案汇总成整屋预算。</p>
       </div>
       <div class="row">
-        <button onclick="exportJson()">导出JSON</button>
-        <label><button onclick="document.getElementById('importFile').click()">导入JSON</button></label>
+        <button onclick="exportJson()">导出 JSON</button>
+        <label><button onclick="document.getElementById('importFile').click()">导入 JSON</button></label>
         <input id="importFile" class="hidden" type="file" accept="application/json" onchange="importJson(event)">
       </div>
     </header>
 
-    <section class="card">
-      <h2>Gist 云同步设置</h2>
-      <div class="sync-box">
-        <div>
-          <div class="small">Gist ID</div>
-          <input id="gistId" style="width:100%" placeholder="例如：a1b2c3d4e5f6...">
-        </div>
-        <div>
-          <div class="small">Gist 文件名</div>
-          <input id="gistFilename" style="width:100%" value="renovation-budget.json">
-        </div>
-        <div style="grid-column:1 / -1">
-          <div class="small">GitHub token（Classic token 只需勾选 gist 权限；只保存在本机浏览器）</div>
-          <input id="gistToken" type="password" style="width:100%" placeholder="ghp_xxx 或 github_pat_xxx">
-        </div>
-        <div class="row" style="grid-column:1 / -1">
-          <button class="primary" onclick="saveGistConfig()">保存设置</button>
-          <button onclick="createGist()">新建 Gist</button>
-          <button onclick="pullGist()">从 Gist 读取</button>
-          <button onclick="pushGist()">保存到 Gist</button>
-        </div>
-      </div>
-      <div id="syncStatus" class="status">未连接 Gist。当前数据会先保存在本机浏览器。</div>
-      <div class="help small warn">
-        推荐创建 Secret Gist。token 不要写进 index.html，只在每台设备首次打开时手动填写一次。
-      </div>
-    </section>
-
     <section class="grid">
-      <div class="card stat"><div class="label">当前最低方案</div><div id="cheapestName" class="value">-</div></div>
-      <div class="card stat"><div class="label">最低总价</div><div id="cheapestTotal" class="value">¥0</div></div>
+      <div class="card stat"><div class="label">整屋已选预算</div><div id="wholeBudget" class="value">￥0</div></div>
+      <div class="card stat"><div class="label">已选分类</div><div id="selectedCount" class="value">0 / 0</div></div>
+      <div class="card stat"><div class="label">当前分类最低方案</div><div id="cheapestName" class="value">-</div></div>
       <div class="card stat"><div class="label">方案 / 设备数量</div><div id="counts" class="value">0 / 0</div></div>
     </section>
 
     <nav class="tabs">
-      <button id="tabPlans" class="active" onclick="switchTab('plans')">方案对比</button>
+      <button id="tabBudget" class="active" onclick="switchTab('budget')">整屋预算</button>
+      <button id="tabPlans" onclick="switchTab('plans')">分类方案</button>
       <button id="tabItems" onclick="switchTab('items')">设备价格库</button>
+      <button id="tabSync" onclick="switchTab('sync')">同步设置</button>
       <button id="tabHelp" onclick="switchTab('help')">部署说明</button>
     </nav>
 
-    <main id="plansView"></main>
+    <main id="budgetView"></main>
+    <main id="plansView" class="hidden"></main>
     <main id="itemsView" class="hidden"></main>
+    <main id="syncView" class="hidden">
+      <section class="card">
+        <h2>Gist 云同步设置</h2>
+        <div class="sync-box">
+          <div>
+            <div class="small">Gist ID</div>
+            <input id="gistId" style="width:100%" placeholder="例如：a1b2c3d4e5f6...">
+          </div>
+          <div>
+            <div class="small">Gist 文件名</div>
+            <input id="gistFilename" style="width:100%" value="renovation-budget.json">
+          </div>
+          <div style="grid-column:1 / -1">
+            <div class="small">GitHub token 只需要勾选 gist 权限；只保存在本机浏览器。</div>
+            <input id="gistToken" type="password" style="width:100%" placeholder="ghp_xxx 或 github_pat_xxx">
+          </div>
+          <div class="row" style="grid-column:1 / -1">
+            <button class="primary" onclick="saveGistConfig()">保存设置</button>
+            <button onclick="createGist()">新建 Gist</button>
+            <button onclick="pullGist()">从 Gist 读取</button>
+            <button onclick="pushGist()">保存到 Gist</button>
+          </div>
+        </div>
+        <div id="syncStatus" class="status">未连接 Gist。当前数据会先保存在本机浏览器。</div>
+        <p class="small warn">推荐创建 Secret Gist。token 不要写进网页源码，每台设备首次打开时手动填写一次即可。</p>
+      </section>
+    </main>
     <main id="helpView" class="hidden">
       <section class="card help">
         <h2>GitHub Pages + Gist 同步步骤</h2>
         <ol>
-          <li>新建 GitHub 仓库，例如 <code>renovation-budget</code>。</li>
-          <li>把本页面保存为 <code>index.html</code>，上传到仓库。</li>
-          <li>仓库 Settings → Pages → Source 选择 <code>Deploy from a branch</code>，Branch 选择 <code>main / root</code>。</li>
-          <li>创建 GitHub token：进入 <code>https://github.com/settings/tokens</code>，选择 Classic token，权限只勾选 <code>gist</code>。</li>
-          <li>打开部署好的网页，填入 token 和文件名，点击 <code>新建 Gist</code>。</li>
-          <li>创建成功后页面会自动填入 Gist ID。以后多台设备填写同一个 Gist ID、文件名和 token，即可读取/保存同一份预算。</li>
+          <li>仓库 Settings → Pages → Source 选择 <code>Deploy from a branch</code>。</li>
+          <li>Branch 选择 <code>main / root</code>，保存后等待 GitHub Pages 部署。</li>
+          <li>创建 GitHub token：进入 <code>https://github.com/settings/tokens</code>，Classic token 只勾选 <code>gist</code>。</li>
+          <li>打开部署好的网页，填写 token 和文件名，点击 <code>新建 Gist</code>。</li>
+          <li>其他设备填写同一个 Gist ID、文件名和 token，即可读取或保存同一份预算数据。</li>
         </ol>
-        <p class="warn">注意：这是个人工具方案，不适合多人同时编辑。同一时间多台设备保存，后保存的会覆盖前保存的。</p>
+        <p class="warn">这是个人工具方案，不适合多人同时编辑。同一时间多台设备保存时，后保存的数据会覆盖先保存的数据。</p>
       </section>
     </main>
   </div>
 
 <script>
-const STORAGE_KEY = 'renovation_budget_compare_gist_v1';
+const STORAGE_KEY = 'renovation_budget_compare_gist_v2';
+const LEGACY_STORAGE_KEY = 'renovation_budget_compare_gist_v1';
 const CONFIG_KEY = 'renovation_budget_gist_config_v1';
+const DEFAULT_CATEGORIES = ['空调','净水','厨电','卫浴','智能家居','家具'];
 
-let data = loadLocal() || {
-  items: [
-    { id:'item-1', name:'一拖三中央空调', category:'空调', unitPrice:32000, note:'含基础安装可直接填总价' },
-    { id:'item-2', name:'一拖四中央空调', category:'空调', unitPrice:38000, note:'含基础安装可直接填总价' },
-    { id:'item-3', name:'客餐厅风管机', category:'空调', unitPrice:9000, note:'客餐厅' },
-    { id:'item-4', name:'卧室挂机 1.5匹', category:'空调', unitPrice:3000, note:'卧室常用' },
-    { id:'item-5', name:'安装辅材/打孔/铜管', category:'安装', unitPrice:3000, note:'按方案单独加' }
-  ],
-  plans: [
-    { id:'plan-1', name:'方案A：一拖三中央空调', rows:[{ id:'row-1', itemId:'item-1', qty:1 }] },
-    { id:'plan-2', name:'方案B：风管机 + 3挂机', rows:[{ id:'row-2', itemId:'item-3', qty:1 },{ id:'row-3', itemId:'item-4', qty:3 },{ id:'row-4', itemId:'item-5', qty:1 }] }
-  ]
-};
+let currentTab = 'budget';
+let activeCategory = '空调';
+let data = normalizeData(loadLocal() || defaultData());
+
+function defaultData(){
+  return {
+    version: 2,
+    categories: DEFAULT_CATEGORIES.slice(),
+    selections: {
+      '空调':'plan-air-a',
+      '净水':'plan-water-b',
+      '厨电':'plan-kitchen-c',
+      '智能家居':'plan-smart-a'
+    },
+    items: [
+      { id:'item-air-central-3', name:'一拖三中央空调', category:'空调', unitPrice:32000, note:'含基础安装，按整套总价录入' },
+      { id:'item-air-central-4', name:'一拖四中央空调', category:'空调', unitPrice:38000, note:'适合房间更多的方案' },
+      { id:'item-air-duct', name:'客餐厅风管机', category:'空调', unitPrice:9000, note:'客餐厅区域' },
+      { id:'item-air-wall', name:'卧室挂机 1.5 匹', category:'空调', unitPrice:3000, note:'卧室常用' },
+      { id:'item-air-install', name:'空调安装辅材', category:'空调', unitPrice:3000, note:'打孔、铜管、排水等预估' },
+      { id:'item-water-front', name:'前置过滤器', category:'净水', unitPrice:1000, note:'' },
+      { id:'item-water-direct', name:'末端直饮机', category:'净水', unitPrice:2000, note:'' },
+      { id:'item-water-central', name:'中央净水', category:'净水', unitPrice:3000, note:'' },
+      { id:'item-kitchen-hood', name:'烟灶套装', category:'厨电', unitPrice:7000, note:'' },
+      { id:'item-kitchen-dishwasher', name:'洗碗机', category:'厨电', unitPrice:6000, note:'' },
+      { id:'item-kitchen-steam', name:'蒸烤箱', category:'厨电', unitPrice:8000, note:'' },
+      { id:'item-kitchen-fridge', name:'冰箱', category:'厨电', unitPrice:7000, note:'' },
+      { id:'item-smart-gateway', name:'智能网关与面板', category:'智能家居', unitPrice:4500, note:'' },
+      { id:'item-smart-curtain', name:'智能窗帘', category:'智能家居', unitPrice:3500, note:'' },
+      { id:'item-smart-sensor', name:'灯控与传感器', category:'智能家居', unitPrice:4000, note:'' },
+      { id:'item-bath-main', name:'主卫洁具组合', category:'卫浴', unitPrice:12000, note:'马桶、浴室柜、花洒预估' },
+      { id:'item-furniture-basic', name:'基础家具组合', category:'家具', unitPrice:45000, note:'沙发、餐桌、床、柜体外家具预估' }
+    ],
+    plans: [
+      { id:'plan-air-a', category:'空调', name:'空调方案 A：一拖三中央空调', rows:[{ id:'row-air-a-1', itemId:'item-air-central-3', qty:1 }] },
+      { id:'plan-air-b', category:'空调', name:'空调方案 B：风管机 + 3 台挂机', rows:[{ id:'row-air-b-1', itemId:'item-air-duct', qty:1 },{ id:'row-air-b-2', itemId:'item-air-wall', qty:3 },{ id:'row-air-b-3', itemId:'item-air-install', qty:1 }] },
+      { id:'plan-water-a', category:'净水', name:'净水方案 A：前置 + 直饮', rows:[{ id:'row-water-a-1', itemId:'item-water-front', qty:1 },{ id:'row-water-a-2', itemId:'item-water-direct', qty:1 }] },
+      { id:'plan-water-b', category:'净水', name:'净水方案 B：全屋净水', rows:[{ id:'row-water-b-1', itemId:'item-water-front', qty:1 },{ id:'row-water-b-2', itemId:'item-water-direct', qty:1 },{ id:'row-water-b-3', itemId:'item-water-central', qty:1 }] },
+      { id:'plan-kitchen-c', category:'厨电', name:'厨电方案 C：烟灶洗碗机蒸烤冰箱', rows:[{ id:'row-kitchen-c-1', itemId:'item-kitchen-hood', qty:1 },{ id:'row-kitchen-c-2', itemId:'item-kitchen-dishwasher', qty:1 },{ id:'row-kitchen-c-3', itemId:'item-kitchen-steam', qty:1 },{ id:'row-kitchen-c-4', itemId:'item-kitchen-fridge', qty:1 }] },
+      { id:'plan-smart-a', category:'智能家居', name:'智能方案 A：基础全屋智能', rows:[{ id:'row-smart-a-1', itemId:'item-smart-gateway', qty:1 },{ id:'row-smart-a-2', itemId:'item-smart-curtain', qty:1 },{ id:'row-smart-a-3', itemId:'item-smart-sensor', qty:1 }] },
+      { id:'plan-bath-a', category:'卫浴', name:'卫浴方案 A：主卫基础组合', rows:[{ id:'row-bath-a-1', itemId:'item-bath-main', qty:1 }] },
+      { id:'plan-furniture-a', category:'家具', name:'家具方案 A：基础家具组合', rows:[{ id:'row-furniture-a-1', itemId:'item-furniture-basic', qty:1 }] }
+    ]
+  };
+}
 
 function uid(prefix){ return prefix + '-' + Date.now() + '-' + Math.random().toString(16).slice(2); }
 function money(n){ return new Intl.NumberFormat('zh-CN',{style:'currency',currency:'CNY',maximumFractionDigits:0}).format(Number(n||0)); }
-function esc(s){ return String(s ?? '').replace(/[&<>'\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
-function loadLocal(){ try { return JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch { return null; } }
-function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); render(); }
-function itemMap(){ return Object.fromEntries(data.items.map(i => [i.id, i])); }
-function planTotal(plan){ const map=itemMap(); return plan.rows.reduce((s,r)=>s+Number(map[r.itemId]?.unitPrice||0)*Number(r.qty||0),0); }
-function totals(){ return data.plans.map(p => ({...p,total:planTotal(p)})).sort((a,b)=>a.total-b.total); }
+function esc(s){ return String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
+function jsArg(value){ return esc(JSON.stringify(value)); }
+function loadLocal(){
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY)); } catch { return null; }
+}
+function normalizeData(next){
+  const normalized = next && typeof next === 'object' ? next : defaultData();
+  normalized.version = 2;
+  normalized.items = Array.isArray(normalized.items) ? normalized.items : [];
+  normalized.plans = Array.isArray(normalized.plans) ? normalized.plans : [];
+  normalized.categories = Array.isArray(normalized.categories) ? normalized.categories : DEFAULT_CATEGORIES.slice();
+  normalized.selections = normalized.selections && typeof normalized.selections === 'object' ? normalized.selections : {};
 
-function render(){ renderStats(); renderPlans(); renderItems(); }
+  normalized.items.forEach(item => {
+    item.id = item.id || uid('item');
+    item.name = item.name || '新设备';
+    item.category = item.category || '空调';
+    item.unitPrice = Number(item.unitPrice || 0);
+    item.note = item.note || '';
+  });
+
+  const itemById = Object.fromEntries(normalized.items.map(item => [item.id, item]));
+  normalized.plans.forEach(plan => {
+    plan.id = plan.id || uid('plan');
+    plan.rows = Array.isArray(plan.rows) ? plan.rows : [];
+    plan.category = plan.category || itemById[plan.rows[0]?.itemId]?.category || '空调';
+    plan.name = plan.name || '新方案';
+    plan.rows.forEach(row => {
+      row.id = row.id || uid('row');
+      row.itemId = row.itemId || normalized.items.find(item => item.category === plan.category)?.id || normalized.items[0]?.id || '';
+      row.qty = Number(row.qty || 0);
+    });
+  });
+
+  const categorySet = new Set(DEFAULT_CATEGORIES);
+  normalized.categories.forEach(category => categorySet.add(category));
+  normalized.items.forEach(item => categorySet.add(item.category));
+  normalized.plans.forEach(plan => categorySet.add(plan.category));
+  normalized.categories = [...categorySet].filter(Boolean);
+
+  if (!Object.keys(normalized.selections).length) {
+    normalized.categories.forEach(category => {
+      const first = normalized.plans.find(plan => plan.category === category);
+      if (first) normalized.selections[category] = first.id;
+    });
+  }
+  Object.keys(normalized.selections).forEach(category => {
+    const selected = normalized.plans.find(plan => plan.id === normalized.selections[category] && plan.category === category);
+    if (!selected) delete normalized.selections[category];
+  });
+  if (!normalized.categories.includes(activeCategory)) activeCategory = normalized.categories[0] || '空调';
+  return normalized;
+}
+function save(){ data = normalizeData(data); localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); render(); }
+function itemMap(){ return Object.fromEntries(data.items.map(i => [i.id, i])); }
+function categories(){ return data.categories; }
+function plansByCategory(category){ return data.plans.filter(plan => plan.category === category); }
+function planTotal(plan){
+  const map = itemMap();
+  return (plan.rows || []).reduce((sum,row) => sum + Number(map[row.itemId]?.unitPrice || 0) * Number(row.qty || 0), 0);
+}
+function categoryTotals(category){ return plansByCategory(category).map(plan => ({...plan,total:planTotal(plan)})).sort((a,b)=>a.total-b.total); }
+function selectedPlan(category){ return data.plans.find(plan => plan.id === data.selections?.[category] && plan.category === category); }
+function selectedSummaries(){
+  return categories().map(category => {
+    const plan = selectedPlan(category);
+    return { category, plan, total: plan ? planTotal(plan) : 0 };
+  });
+}
+function wholeTotal(){ return selectedSummaries().reduce((sum,row) => sum + row.total, 0); }
+
+function render(){
+  renderStats();
+  renderBudget();
+  renderPlans();
+  renderItems();
+}
 function renderStats(){
-  const sorted = totals(); const c = sorted[0];
-  document.getElementById('cheapestName').textContent = c ? c.name : '-';
-  document.getElementById('cheapestTotal').textContent = money(c ? c.total : 0);
+  const selected = selectedSummaries().filter(row => row.plan);
+  const sorted = categoryTotals(activeCategory);
+  document.getElementById('wholeBudget').textContent = money(wholeTotal());
+  document.getElementById('selectedCount').textContent = selected.length + ' / ' + categories().length;
+  document.getElementById('cheapestName').textContent = sorted[0] ? sorted[0].name : '-';
   document.getElementById('counts').textContent = data.plans.length + ' / ' + data.items.length;
 }
-function renderPlans(){
-  const map = itemMap(); const sorted = totals(); const min = sorted[0]?.total || 0;
-  document.getElementById('plansView').innerHTML = `
-    <div class="row" style="justify-content:space-between;margin-bottom:12px"><h2 style="margin:0">方案对比</h2><button class="primary" onclick="addPlan()">新增方案</button></div>
-    <div class="plan-grid">${data.plans.map(plan => {
-      const total = planTotal(plan);
-      return `<section class="card">
-        <div class="plan-head">
-          <input class="plan-title" value="${esc(plan.name)}" onchange="updatePlan('${plan.id}','name',this.value)">
-          <button onclick="duplicatePlan('${plan.id}')">复制</button>
-          <button class="danger" onclick="removePlan('${plan.id}')">删除</button>
+function renderCategoryTabs(){
+  return `<nav class="category-tabs">
+    ${categories().map(category => `<button class="${category === activeCategory ? 'active' : ''}" onclick="setActiveCategory(${jsArg(category)})">${esc(category)}</button>`).join('')}
+    <button onclick="addCategory()">新增分类</button>
+  </nav>`;
+}
+function renderBudget(){
+  const rows = selectedSummaries();
+  document.getElementById('budgetView').innerHTML = `
+    <section class="budget-layout">
+      <div class="card">
+        <div class="between" style="margin-bottom:10px">
+          <h2>整屋方案组合</h2>
+          <button class="primary" onclick="switchTab('plans')">编辑分类方案</button>
         </div>
-        <div class="total"><div><div class="small">总价</div><div class="money">${money(total)}</div></div><div class="small">比最低方案高 ${money(Math.max(0,total-min))}</div></div>
-        ${plan.rows.map(row => {
-          const item = map[row.itemId]; const line = Number(item?.unitPrice||0) * Number(row.qty||0);
-          return `<div class="line">
-            <select onchange="updateRow('${plan.id}','${row.id}','itemId',this.value)">${data.items.map(i=>`<option value="${i.id}" ${i.id===row.itemId?'selected':''}>${esc(i.name)}</option>`).join('')}</select>
-            <input type="number" min="0" value="${row.qty}" onchange="updateRow('${plan.id}','${row.id}','qty',Number(this.value))">
-            <div style="text-align:right;font-weight:700">${money(line)}</div>
-            <button class="danger" onclick="removeRow('${plan.id}','${row.id}')">×</button>
-          </div>`;
-        }).join('')}
-        <button onclick="addRow('${plan.id}')">添加设备</button>
-      </section>`;
-    }).join('')}</div>`;
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>分类</th><th>选择方案</th><th>小计</th><th></th></tr></thead>
+            <tbody>
+              ${rows.map(row => {
+                const plans = plansByCategory(row.category);
+                return `<tr>
+                  <td><strong>${esc(row.category)}</strong></td>
+                  <td>
+                    <select style="width:100%" onchange="selectBudgetPlan(${jsArg(row.category)}, this.value)">
+                      <option value="">不选择</option>
+                      ${plans.map(plan => `<option value="${esc(plan.id)}" ${row.plan?.id === plan.id ? 'selected' : ''}>${esc(plan.name)}（${money(planTotal(plan))}）</option>`).join('')}
+                    </select>
+                  </td>
+                  <td><strong>${money(row.total)}</strong></td>
+                  <td><button onclick="focusCategory(${jsArg(row.category)})">查看</button></td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div class="budget-total"><span>合计</span><span>${money(wholeTotal())}</span></div>
+      </div>
+      <aside class="card">
+        <h2>当前组合清单</h2>
+        <div class="summary-list">
+          ${rows.filter(row => row.plan).length ? rows.filter(row => row.plan).map(row => `
+            <div class="summary-line">
+              <span>${esc(row.category)}</span>
+              <span>${esc(row.plan.name)}</span>
+              <strong>${money(row.total)}</strong>
+            </div>`).join('') : '<div class="empty">还没有选择任何分类方案。</div>'}
+        </div>
+      </aside>
+    </section>`;
+}
+function renderPlans(){
+  const sorted = categoryTotals(activeCategory);
+  const min = sorted[0]?.total || 0;
+  const plans = plansByCategory(activeCategory);
+  document.getElementById('plansView').innerHTML = `
+    ${renderCategoryTabs()}
+    <div class="between" style="margin-bottom:12px">
+      <h2>${esc(activeCategory)}方案对比</h2>
+      <button class="primary" onclick="addPlan()">新增方案</button>
+    </div>
+    ${plans.length ? `<div class="plan-grid">${plans.map(plan => renderPlanCard(plan, min)).join('')}</div>` : `<section class="card"><div class="empty">这个分类还没有方案，可以先新增一个方案。</div></section>`}`;
+}
+function renderPlanCard(plan, min){
+  const total = planTotal(plan);
+  const isSelected = data.selections?.[plan.category] === plan.id;
+  return `<section class="card">
+    <div class="plan-head">
+      <input class="plan-title" value="${esc(plan.name)}" onchange="updatePlan(${jsArg(plan.id)}, 'name', this.value)">
+      <select onchange="updatePlan(${jsArg(plan.id)}, 'category', this.value)">
+        ${categories().map(category => `<option value="${esc(category)}" ${category === plan.category ? 'selected' : ''}>${esc(category)}</option>`).join('')}
+      </select>
+      <button onclick="duplicatePlan(${jsArg(plan.id)})">复制</button>
+      <button class="danger" onclick="removePlan(${jsArg(plan.id)})">删除</button>
+    </div>
+    <div class="plan-total">
+      <div><div class="small">总价</div><div class="money">${money(total)}</div></div>
+      <div class="small">比本类最低高 ${money(Math.max(0,total-min))}</div>
+    </div>
+    ${(plan.rows || []).map(row => renderPlanRow(plan, row)).join('')}
+    <div class="row" style="margin-top:10px">
+      <button onclick="addRow(${jsArg(plan.id)})">添加设备</button>
+      <button class="${isSelected ? 'selected' : 'primary'}" onclick="selectBudgetPlan(${jsArg(plan.category)}, ${jsArg(plan.id)})">${isSelected ? '已加入整屋预算' : '加入整屋预算'}</button>
+    </div>
+  </section>`;
+}
+function renderPlanRow(plan, row){
+  const map = itemMap();
+  const item = map[row.itemId];
+  const line = Number(item?.unitPrice || 0) * Number(row.qty || 0);
+  const sameCategoryItems = data.items.filter(next => next.category === plan.category);
+  const otherItems = data.items.filter(next => next.category !== plan.category);
+  const options = [
+    sameCategoryItems.length ? `<optgroup label="${esc(plan.category)}">${sameCategoryItems.map(itemOption(row)).join('')}</optgroup>` : '',
+    otherItems.length ? `<optgroup label="其他分类">${otherItems.map(itemOption(row)).join('')}</optgroup>` : ''
+  ].join('');
+  return `<div class="line">
+    <select onchange="updateRow(${jsArg(plan.id)}, ${jsArg(row.id)}, 'itemId', this.value)">${options}</select>
+    <input type="number" min="0" value="${esc(row.qty)}" onchange="updateRow(${jsArg(plan.id)}, ${jsArg(row.id)}, 'qty', Number(this.value))">
+    <div style="text-align:right;font-weight:750">${money(line)}</div>
+    <button class="danger" onclick="removeRow(${jsArg(plan.id)}, ${jsArg(row.id)})">×</button>
+  </div>`;
+}
+function itemOption(row){
+  return item => `<option value="${esc(item.id)}" ${item.id === row.itemId ? 'selected' : ''}>${esc(item.name)}</option>`;
 }
 function renderItems(){
   document.getElementById('itemsView').innerHTML = `
+    ${renderCategoryTabs()}
     <section class="card">
-      <div class="row" style="justify-content:space-between;margin-bottom:12px"><h2 style="margin:0">设备价格库</h2><button class="primary" onclick="addItem()">新增设备</button></div>
-      <div style="overflow:auto"><table><thead><tr><th>设备名称</th><th>分类</th><th>单价</th><th>备注</th><th></th></tr></thead><tbody>
-      ${data.items.map(item => `<tr>
-        <td><input style="width:100%" value="${esc(item.name)}" onchange="updateItem('${item.id}','name',this.value)"></td>
-        <td><input style="width:100%" value="${esc(item.category)}" onchange="updateItem('${item.id}','category',this.value)"></td>
-        <td><input type="number" value="${item.unitPrice}" onchange="updateItem('${item.id}','unitPrice',Number(this.value))"></td>
-        <td><input style="width:100%" value="${esc(item.note)}" onchange="updateItem('${item.id}','note',this.value)"></td>
-        <td><button class="danger" onclick="removeItem('${item.id}')">删除</button></td>
-      </tr>`).join('')}
-      </tbody></table></div>
+      <div class="between" style="margin-bottom:12px">
+        <h2>设备价格库</h2>
+        <button class="primary" onclick="addItem()">新增设备</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>设备名称</th><th>分类</th><th>单价</th><th>备注</th><th></th></tr></thead>
+          <tbody>
+            ${data.items.map(item => `<tr>
+              <td><input style="width:100%" value="${esc(item.name)}" onchange="updateItem(${jsArg(item.id)}, 'name', this.value)"></td>
+              <td>
+                <select style="width:100%" onchange="updateItem(${jsArg(item.id)}, 'category', this.value)">
+                  ${categories().map(category => `<option value="${esc(category)}" ${category === item.category ? 'selected' : ''}>${esc(category)}</option>`).join('')}
+                </select>
+              </td>
+              <td><input type="number" value="${esc(item.unitPrice)}" onchange="updateItem(${jsArg(item.id)}, 'unitPrice', Number(this.value))"></td>
+              <td><input style="width:100%" value="${esc(item.note)}" onchange="updateItem(${jsArg(item.id)}, 'note', this.value)"></td>
+              <td><button class="danger" onclick="removeItem(${jsArg(item.id)})">删除</button></td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
     </section>`;
 }
-function switchTab(tab){
-  document.getElementById('plansView').classList.toggle('hidden', tab!=='plans');
-  document.getElementById('itemsView').classList.toggle('hidden', tab!=='items');
-  document.getElementById('helpView').classList.toggle('hidden', tab!=='help');
-  document.getElementById('tabPlans').classList.toggle('active', tab==='plans');
-  document.getElementById('tabItems').classList.toggle('active', tab==='items');
-  document.getElementById('tabHelp').classList.toggle('active', tab==='help');
-}
-function addItem(){ data.items.push({id:uid('item'),name:'新设备',category:'空调',unitPrice:0,note:''}); save(); }
-function updateItem(id,key,val){ const i=data.items.find(x=>x.id===id); if(i){ i[key]=val; save(); } }
-function removeItem(id){ data.items=data.items.filter(i=>i.id!==id); data.plans.forEach(p=>p.rows=p.rows.filter(r=>r.itemId!==id)); save(); }
-function addPlan(){ data.plans.push({id:uid('plan'),name:'新方案',rows:[]}); save(); }
-function updatePlan(id,key,val){ const p=data.plans.find(x=>x.id===id); if(p){ p[key]=val; save(); } }
-function removePlan(id){ data.plans=data.plans.filter(p=>p.id!==id); save(); }
-function duplicatePlan(id){ const p=data.plans.find(x=>x.id===id); if(!p)return; data.plans.push({...p,id:uid('plan'),name:p.name+' 副本',rows:p.rows.map(r=>({...r,id:uid('row')}))}); save(); }
-function addRow(planId){ const p=data.plans.find(x=>x.id===planId); if(p) { p.rows.push({id:uid('row'),itemId:data.items[0]?.id||'',qty:1}); save(); } }
-function updateRow(planId,rowId,key,val){ const p=data.plans.find(x=>x.id===planId); const r=p?.rows.find(x=>x.id===rowId); if(r){ r[key]=val; save(); } }
-function removeRow(planId,rowId){ const p=data.plans.find(x=>x.id===planId); if(p){ p.rows=p.rows.filter(r=>r.id!==rowId); save(); } }
 
-function exportJson(){ const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='装修预算方案.json'; a.click(); URL.revokeObjectURL(url); }
-function importJson(e){ const f=e.target.files[0]; if(!f)return; const reader=new FileReader(); reader.onload=()=>{ try{ const next=JSON.parse(reader.result); if(!Array.isArray(next.items)||!Array.isArray(next.plans)) throw 0; data=next; save(); }catch{ alert('导入失败：JSON格式不正确'); } }; reader.readAsText(f); }
+function switchTab(tab){
+  currentTab = tab;
+  ['budget','plans','items','sync','help'].forEach(name => {
+    document.getElementById(name + 'View').classList.toggle('hidden', tab !== name);
+    document.getElementById('tab' + name.charAt(0).toUpperCase() + name.slice(1)).classList.toggle('active', tab === name);
+  });
+}
+function setActiveCategory(category){ activeCategory = category; render(); switchTab(currentTab); }
+function focusCategory(category){ activeCategory = category; render(); switchTab('plans'); }
+function addCategory(){
+  const name = prompt('请输入新分类名称');
+  const category = String(name || '').trim();
+  if (!category) return;
+  if (!data.categories.includes(category)) data.categories.push(category);
+  activeCategory = category;
+  save();
+}
+function selectBudgetPlan(category, planId){
+  data.selections = data.selections || {};
+  if (planId) data.selections[category] = planId;
+  else delete data.selections[category];
+  save();
+}
+function addItem(){
+  data.items.push({ id:uid('item'), name:'新设备', category:activeCategory, unitPrice:0, note:'' });
+  save();
+}
+function updateItem(id,key,val){
+  const item = data.items.find(next => next.id === id);
+  if (!item) return;
+  item[key] = val;
+  save();
+}
+function removeItem(id){
+  data.items = data.items.filter(item => item.id !== id);
+  data.plans.forEach(plan => plan.rows = plan.rows.filter(row => row.itemId !== id));
+  save();
+}
+function addPlan(){
+  const firstItem = data.items.find(item => item.category === activeCategory) || data.items[0];
+  const plan = { id:uid('plan'), category:activeCategory, name:activeCategory + '新方案', rows:[] };
+  if (firstItem) plan.rows.push({ id:uid('row'), itemId:firstItem.id, qty:1 });
+  data.plans.push(plan);
+  save();
+}
+function updatePlan(id,key,val){
+  const plan = data.plans.find(next => next.id === id);
+  if (!plan) return;
+  const oldCategory = plan.category;
+  plan[key] = val;
+  if (key === 'category') {
+    if (!data.categories.includes(val)) data.categories.push(val);
+    if (data.selections?.[oldCategory] === id) delete data.selections[oldCategory];
+    activeCategory = val;
+  }
+  save();
+}
+function removePlan(id){
+  const plan = data.plans.find(next => next.id === id);
+  data.plans = data.plans.filter(next => next.id !== id);
+  if (plan && data.selections?.[plan.category] === id) delete data.selections[plan.category];
+  save();
+}
+function duplicatePlan(id){
+  const plan = data.plans.find(next => next.id === id);
+  if (!plan) return;
+  data.plans.push({
+    ...plan,
+    id:uid('plan'),
+    name:plan.name + ' 副本',
+    rows:plan.rows.map(row => ({...row,id:uid('row')}))
+  });
+  save();
+}
+function addRow(planId){
+  const plan = data.plans.find(next => next.id === planId);
+  if (!plan) return;
+  const firstItem = data.items.find(item => item.category === plan.category) || data.items[0];
+  plan.rows.push({ id:uid('row'), itemId:firstItem?.id || '', qty:1 });
+  save();
+}
+function updateRow(planId,rowId,key,val){
+  const plan = data.plans.find(next => next.id === planId);
+  const row = plan?.rows.find(next => next.id === rowId);
+  if (!row) return;
+  row[key] = val;
+  save();
+}
+function removeRow(planId,rowId){
+  const plan = data.plans.find(next => next.id === planId);
+  if (!plan) return;
+  plan.rows = plan.rows.filter(row => row.id !== rowId);
+  save();
+}
+
+function exportJson(){
+  const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '装修方案组合预算.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+function importJson(e){
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const next = normalizeData(JSON.parse(reader.result));
+      if (!Array.isArray(next.items) || !Array.isArray(next.plans)) throw new Error('JSON 格式不正确');
+      data = next;
+      save();
+    }catch(err){
+      alert('导入失败：' + (err.message || 'JSON 格式不正确'));
+    }
+  };
+  reader.readAsText(file);
+}
 
 function loadGistConfig(){
   try{
-    const c=JSON.parse(localStorage.getItem(CONFIG_KEY));
-    if(c){ gistId.value=c.gistId||''; gistFilename.value=c.filename||'renovation-budget.json'; gistToken.value=c.token||''; }
+    const config = JSON.parse(localStorage.getItem(CONFIG_KEY));
+    if (config) {
+      gistId.value = config.gistId || '';
+      gistFilename.value = config.filename || 'renovation-budget.json';
+      gistToken.value = config.token || '';
+    }
   }catch{}
 }
-function getGistConfig(){ return { gistId:gistId.value.trim(), filename:gistFilename.value.trim()||'renovation-budget.json', token:gistToken.value.trim() }; }
+function getGistConfig(){
+  return { gistId:gistId.value.trim(), filename:gistFilename.value.trim() || 'renovation-budget.json', token:gistToken.value.trim() };
+}
 function saveGistConfig(){
-  const c=getGistConfig();
-  if(!c.token){ alert('请填写 GitHub token'); return false; }
-  localStorage.setItem(CONFIG_KEY, JSON.stringify(c));
+  const config = getGistConfig();
+  if (!config.token) { alert('请填写 GitHub token'); return false; }
+  localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
   syncStatus.innerHTML = '<span class="ok">Gist 设置已保存到本机浏览器。</span>';
   return true;
 }
 async function gistRequest(method, url, body){
-  const c=getGistConfig();
-  if(!c.token) throw new Error('请先填写 GitHub token');
+  const config = getGistConfig();
+  if (!config.token) throw new Error('请先填写 GitHub token');
   const res = await fetch(url, {
     method,
-    headers: { 'Accept':'application/vnd.github+json', 'Authorization':'Bearer '+c.token, 'X-GitHub-Api-Version':'2022-11-28' },
+    headers: { 'Accept':'application/vnd.github+json', 'Authorization':'Bearer '+config.token, 'X-GitHub-Api-Version':'2022-11-28' },
     body: body ? JSON.stringify(body) : undefined
   });
   const json = await res.json().catch(()=>({}));
-  if(!res.ok) throw new Error(json.message || ('GitHub API 错误：'+res.status));
+  if (!res.ok) throw new Error(json.message || ('GitHub API 错误：' + res.status));
   return json;
 }
 async function createGist(){
   try{
-    if(!saveGistConfig()) return;
-    const c=getGistConfig();
-    const body={
+    if (!saveGistConfig()) return;
+    const config = getGistConfig();
+    const body = {
       description:'Renovation budget data',
       public:false,
-      files:{ [c.filename]: { content: JSON.stringify(data,null,2) } }
+      files:{ [config.filename]: { content: JSON.stringify(data,null,2) } }
     };
-    const json=await gistRequest('POST','https://api.github.com/gists',body);
-    gistId.value=json.id;
-    localStorage.setItem(CONFIG_KEY, JSON.stringify({...c,gistId:json.id}));
-    syncStatus.innerHTML = '<span class="ok">已新建 Secret Gist。</span> Gist ID：'+json.id;
-  }catch(err){ syncStatus.textContent='新建失败：'+err.message; }
+    const json = await gistRequest('POST','https://api.github.com/gists',body);
+    gistId.value = json.id;
+    localStorage.setItem(CONFIG_KEY, JSON.stringify({...config,gistId:json.id}));
+    syncStatus.innerHTML = '<span class="ok">已新建 Secret Gist。</span> Gist ID：' + json.id;
+  }catch(err){ syncStatus.textContent = '新建失败：' + err.message; }
 }
 async function pullGist(){
   try{
-    if(!saveGistConfig()) return;
-    const c=getGistConfig();
-    if(!c.gistId) throw new Error('请填写 Gist ID，或先点击“新建 Gist”');
-    const json=await gistRequest('GET','https://api.github.com/gists/'+encodeURIComponent(c.gistId));
-    const file=json.files[c.filename] || Object.values(json.files)[0];
-    if(!file) throw new Error('Gist 中没有可读取的文件');
-    const content=file.content ?? await (await fetch(file.raw_url)).text();
-    const next=JSON.parse(content);
-    if(!Array.isArray(next.items) || !Array.isArray(next.plans)) throw new Error('Gist JSON 格式不正确');
-    data=next; save();
-    syncStatus.innerHTML = '<span class="ok">已从 Gist 读取。</span> 文件：'+file.filename;
-  }catch(err){ syncStatus.textContent='读取失败：'+err.message; }
+    if (!saveGistConfig()) return;
+    const config = getGistConfig();
+    if (!config.gistId) throw new Error('请填写 Gist ID，或先点击“新建 Gist”');
+    const json = await gistRequest('GET','https://api.github.com/gists/'+encodeURIComponent(config.gistId));
+    const file = json.files[config.filename] || Object.values(json.files)[0];
+    if (!file) throw new Error('Gist 中没有可读取的文件');
+    const content = file.content ?? await (await fetch(file.raw_url)).text();
+    data = normalizeData(JSON.parse(content));
+    save();
+    syncStatus.innerHTML = '<span class="ok">已从 Gist 读取。</span> 文件：' + esc(file.filename);
+  }catch(err){ syncStatus.textContent = '读取失败：' + err.message; }
 }
 async function pushGist(){
   try{
-    if(!saveGistConfig()) return;
-    const c=getGistConfig();
-    if(!c.gistId) throw new Error('请填写 Gist ID，或先点击“新建 Gist”');
-    const body={ files:{ [c.filename]: { content: JSON.stringify(data,null,2) } } };
-    await gistRequest('PATCH','https://api.github.com/gists/'+encodeURIComponent(c.gistId),body);
-    syncStatus.innerHTML = '<span class="ok">已保存到 Gist。</span> '+new Date().toLocaleString();
-  }catch(err){ syncStatus.textContent='保存失败：'+err.message; }
+    if (!saveGistConfig()) return;
+    const config = getGistConfig();
+    if (!config.gistId) throw new Error('请填写 Gist ID，或先点击“新建 Gist”');
+    const body = { files:{ [config.filename]: { content: JSON.stringify(data,null,2) } } };
+    await gistRequest('PATCH','https://api.github.com/gists/'+encodeURIComponent(config.gistId),body);
+    syncStatus.innerHTML = '<span class="ok">已保存到 Gist。</span> ' + new Date().toLocaleString();
+  }catch(err){ syncStatus.textContent = '保存失败：' + err.message; }
 }
 
 loadGistConfig();
