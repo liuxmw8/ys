@@ -1320,8 +1320,12 @@ function saveItemImage(){
   const item = data.items.find(next => next.id === editingImageItemId);
   if (!item) return;
   item.image = editingItemImage || document.getElementById('editItemImageUrl').value.trim();
+  save({sync:false});
   closeItemImageModal();
-  save();
+  if (hasCloudSyncConfig()) {
+    document.getElementById('syncStatus').innerHTML = '<span class="warn">图片已保存，正在同步到 Gist。</span>';
+    autoPushGist();
+  }
 }
 function createItemFromModal(){
   const name = document.getElementById('newItemName').value.trim() || '新设备';
