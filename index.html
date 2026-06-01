@@ -117,6 +117,48 @@
       .summary-line { grid-template-columns:76px 1fr; }
       .summary-line strong { justify-self:start; }
     }
+    @media (max-width:640px) {
+      .item-table-wrap { overflow:visible; }
+      .item-table, .item-table tbody, .item-table tr, .item-table td { display:block; width:100%; }
+      .item-table thead { display:none; }
+      .item-table tbody { display:grid; gap:12px; }
+      .item-table tr {
+        border:1px solid var(--line);
+        border-radius:8px;
+        background:#fff;
+        padding:12px;
+      }
+      .item-table td {
+        border-bottom:0;
+        padding:7px 0;
+      }
+      .item-table td::before {
+        content:attr(data-label);
+        display:block;
+        margin-bottom:5px;
+        color:var(--muted);
+        font-size:12px;
+        font-weight:650;
+      }
+      .item-table input,
+      .item-table select,
+      .item-table input[type="number"] {
+        width:100%;
+        min-height:42px;
+      }
+      .item-table td:first-child input {
+        font-weight:700;
+      }
+      .item-table td:last-child {
+        padding-top:10px;
+      }
+      .item-table td:last-child::before {
+        display:none;
+      }
+      .item-table td:last-child button {
+        width:100%;
+      }
+    }
   </style>
 </head>
 <body>
@@ -447,19 +489,19 @@ function renderItems(){
         <h2>设备价格库</h2>
         <button class="primary" onclick="addItem()">新增设备</button>
       </div>
-      <div class="table-wrap">
-        <table>
+      <div class="table-wrap item-table-wrap">
+        <table class="item-table">
           <thead><tr><th>设备名称</th><th>分类</th><th>单价</th><th>备注</th><th></th></tr></thead>
           <tbody>
             ${data.items.map(item => `<tr>
-              <td><input style="width:100%" value="${esc(item.name)}" onchange="updateItem(${jsArg(item.id)}, 'name', this.value)"></td>
-              <td>
+              <td data-label="设备名称"><input style="width:100%" value="${esc(item.name)}" onchange="updateItem(${jsArg(item.id)}, 'name', this.value)"></td>
+              <td data-label="分类">
                 <select style="width:100%" onchange="updateItem(${jsArg(item.id)}, 'category', this.value)">
                   ${categories().map(category => `<option value="${esc(category)}" ${category === item.category ? 'selected' : ''}>${esc(category)}</option>`).join('')}
                 </select>
               </td>
-              <td><input type="number" value="${esc(item.unitPrice)}" onchange="updateItem(${jsArg(item.id)}, 'unitPrice', Number(this.value))"></td>
-              <td><input style="width:100%" value="${esc(item.note)}" onchange="updateItem(${jsArg(item.id)}, 'note', this.value)"></td>
+              <td data-label="单价"><input type="number" value="${esc(item.unitPrice)}" onchange="updateItem(${jsArg(item.id)}, 'unitPrice', Number(this.value))"></td>
+              <td data-label="备注"><input style="width:100%" value="${esc(item.note)}" onchange="updateItem(${jsArg(item.id)}, 'note', this.value)"></td>
               <td><button class="danger" onclick="removeItem(${jsArg(item.id)})">删除</button></td>
             </tr>`).join('')}
           </tbody>
