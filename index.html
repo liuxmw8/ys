@@ -196,6 +196,7 @@ const DEFAULT_CATEGORIES = ['空调','净水','厨电','卫浴','智能家居','
 
 let currentTab = 'budget';
 let activeCategory = '空调';
+let autoPushTimer = null;
 let data = normalizeData(loadLocal() || defaultData());
 
 function defaultData(){
@@ -295,7 +296,12 @@ function normalizeData(next){
   if (!normalized.categories.includes(activeCategory)) activeCategory = normalized.categories[0] || '空调';
   return normalized;
 }
-function save(){ data = normalizeData(data); localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); render(); }
+function save(options = {}){
+  data = normalizeData(data);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  render();
+  if (options.sync !== false) scheduleAutoPush();
+}
 function itemMap(){ return Object.fromEntries(data.items.map(i => [i.id, i])); }
 function categories(){ return data.categories; }
 function plansByCategory(category){ return data.plans.filter(plan => plan.category === category); }
@@ -603,6 +609,16 @@ function saveGistConfig(){
   syncStatus.innerHTML = '<span class="ok">Gist 设置已保存到本机浏览器。</span>';
   return true;
 }
+function hasCloudSyncConfig(){
+  const config = getGistConfig();
+  return Boolean(config.token && config.gistId && config.filename);
+}
+function scheduleAutoPush(){
+  if (!hasCloudSyncConfig()) return;
+  clearTimeout(autoPushTimer);
+  autoPushTimer = setTimeout(autoPushGist, 1200);
+  syncStatus.innerHTML = '<span class="warn">本地已保存，稍后自动同步到 Gist。</span>';
+}
 async function gistRequest(method, url, body){
   const config = getGistConfig();
   if (!config.token) throw new Error('请先填写 GitHub token');
@@ -640,9 +656,20 @@ async function pullGist(){
     if (!file) throw new Error('Gist 中没有可读取的文件');
     const content = file.content ?? await (await fetch(file.raw_url)).text();
     data = normalizeData(JSON.parse(content));
-    save();
+    save({sync:false});
     syncStatus.innerHTML = '<span class="ok">已从 Gist 读取。</span> 文件：' + esc(file.filename);
   }catch(err){ syncStatus.textContent = '读取失败：' + err.message; }
+}
+async function autoPushGist(){
+  if (!hasCloudSyncConfig()) return;
+  try{
+    const config = getGistConfig();
+    const body = { files:{ [config.filename]: { content: JSON.stringify(data,null,2) } } };
+    await gistRequest('PATCH','https://api.github.com/gists/'+encodeURIComponent(config.gistId),body);
+    syncStatus.innerHTML = '<span class="ok">已自动保存到 Gist。</span> ' + new Date().toLocaleString();
+  }catch(err){
+    syncStatus.textContent = '自动保存到 Gist 失败：' + err.message;
+  }
 }
 async function pushGist(){
   try{
