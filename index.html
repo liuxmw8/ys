@@ -66,9 +66,14 @@
     }
     .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
     .between { display:flex; justify-content:space-between; gap:12px; align-items:center; }
-    .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:16px 0; }
+    .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:16px 0; }
     .stat .label { color:var(--muted); font-size:13px; }
     .stat .value { font-size:25px; font-weight:800; margin-top:8px; line-height:1.2; }
+    .stat .value.compact { font-size:17px; line-height:1.45; }
+    .stat-line { display:flex; justify-content:space-between; gap:10px; align-items:baseline; }
+    .stat-delta { white-space:nowrap; }
+    .stat-delta.save { color:var(--ok); }
+    .stat-delta.add { color:var(--danger); }
     .tabs, .category-tabs { display:flex; gap:8px; margin:16px 0; overflow:auto; padding-bottom:2px; }
     .tabs button.active, .category-tabs button.active { background:var(--main); color:white; border-color:var(--main); }
     .category-tabs button { background:#fff; }
@@ -266,9 +271,8 @@
 
     <section class="grid">
       <div class="card stat"><div class="label">整屋已选预算</div><div id="wholeBudget" class="value">￥0</div></div>
-      <div class="card stat"><div class="label">已选分类</div><div id="selectedCount" class="value">0 / 0</div></div>
-      <div class="card stat"><div class="label">当前分类最低方案</div><div id="cheapestName" class="value">-</div></div>
-      <div class="card stat"><div class="label">方案 / 设备数量</div><div id="counts" class="value">0 / 0</div></div>
+      <div class="card stat"><div class="label">未选分类</div><div id="missingCategories" class="value compact">-</div></div>
+      <div class="card stat"><div class="label">当前分类预算差异</div><div id="categoryBudgetInsight" class="value compact">-</div></div>
     </section>
 
     <nav class="tabs">
@@ -379,6 +383,7 @@ function defaultData(){
 
 function uid(prefix){ return prefix + '-' + Date.now() + '-' + Math.random().toString(16).slice(2); }
 function money(n){ return new Intl.NumberFormat('zh-CN',{style:'currency',currency:'CNY',maximumFractionDigits:0}).format(Number(n||0)); }
+function signedMoney(n){ return (n >= 0 ? '+' : '-') + money(Math.abs(n)); }
 function esc(s){ return String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
 function jsArg(value){ return esc(JSON.stringify(value)); }
 function loadLocal(){
@@ -462,12 +467,26 @@ function render(){
   renderItems();
 }
 function renderStats(){
-  const selected = selectedSummaries().filter(row => row.plan);
+  const missing = selectedSummaries().filter(row => !row.plan).map(row => row.category);
   const sorted = categoryTotals(activeCategory);
+  const selected = selectedPlan(activeCategory);
+  const baseline = selected ? planTotal(selected) : (sorted[0]?.total || 0);
+  const lowest = sorted[0];
+  const highest = sorted[sorted.length - 1];
   document.getElementById('wholeBudget').textContent = money(wholeTotal());
-  document.getElementById('selectedCount').textContent = selected.length + ' / ' + categories().length;
-  document.getElementById('cheapestName').textContent = sorted[0] ? sorted[0].name : '-';
-  document.getElementById('counts').textContent = data.plans.length + ' / ' + data.items.length;
+  document.getElementById('missingCategories').textContent = missing.length ? missing.join('、') : '已全部选择';
+  document.getElementById('categoryBudgetInsight').innerHTML = renderCategoryBudgetInsight(lowest, highest, baseline);
+}
+function renderCategoryBudgetInsight(lowest, highest, baseline){
+  if (!lowest) return '-';
+  const rows = [];
+  const lowestDelta = lowest.total - baseline;
+  rows.push(`<div class="stat-line"><span>最低：${esc(lowest.name)}</span><span class="stat-delta save">${signedMoney(lowestDelta)}</span></div>`);
+  if (highest && highest.id !== lowest.id) {
+    const highestDelta = highest.total - baseline;
+    rows.push(`<div class="stat-line"><span>最高：${esc(highest.name)}</span><span class="stat-delta add">${signedMoney(highestDelta)}</span></div>`);
+  }
+  return rows.join('');
 }
 function renderCategoryTabs(){
   return `<nav class="category-tabs">
