@@ -94,6 +94,36 @@
     .summary-money { text-align:right; }
     .summary-money strong { display:block; }
     .summary-money span { color:var(--muted); font-size:12px; }
+    .modal-backdrop {
+      position:fixed;
+      inset:0;
+      z-index:20;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:18px;
+      background:rgba(15,23,42,.42);
+    }
+    .modal {
+      width:min(520px,100%);
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:8px;
+      padding:18px;
+      box-shadow:0 20px 60px rgba(15,23,42,.25);
+    }
+    .form-grid { display:grid; gap:12px; }
+    .form-field label {
+      display:block;
+      margin-bottom:5px;
+      color:var(--muted);
+      font-size:13px;
+      font-weight:650;
+    }
+    .form-field input,
+    .form-field select {
+      width:100%;
+    }
     .tabs, .category-tabs { display:flex; gap:8px; margin:16px 0; overflow:auto; padding-bottom:2px; }
     .tabs button.active, .category-tabs button.active { background:var(--main); color:white; border-color:var(--main); }
     .category-tabs button { background:#fff; }
@@ -280,6 +310,10 @@
       .item-table td:last-child button {
         width:100%;
       }
+      .modal-backdrop {
+        align-items:flex-end;
+        padding:10px;
+      }
     }
   </style>
 </head>
@@ -354,6 +388,36 @@
         <p class="warn">这是个人工具方案，不适合多人同时编辑。同一时间多台设备保存时，后保存的数据会覆盖先保存的数据。</p>
       </section>
     </main>
+  </div>
+  <div id="itemModalBackdrop" class="modal-backdrop hidden" onclick="closeItemModal(event)">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="itemModalTitle" onclick="event.stopPropagation()">
+      <div class="between" style="margin-bottom:12px">
+        <h2 id="itemModalTitle">新增设备</h2>
+        <button onclick="closeItemModal()">关闭</button>
+      </div>
+      <div class="form-grid">
+        <div class="form-field">
+          <label for="newItemName">设备名称</label>
+          <input id="newItemName" placeholder="例如：洗碗机">
+        </div>
+        <div class="form-field">
+          <label for="newItemCategory">分类</label>
+          <select id="newItemCategory"></select>
+        </div>
+        <div class="form-field">
+          <label for="newItemPrice">单价</label>
+          <input id="newItemPrice" type="number" min="0" placeholder="0">
+        </div>
+        <div class="form-field">
+          <label for="newItemNote">备注</label>
+          <input id="newItemNote" placeholder="品牌、安装、购买渠道等">
+        </div>
+        <div class="row" style="justify-content:flex-end">
+          <button onclick="closeItemModal()">取消</button>
+          <button class="primary" onclick="createItemFromModal()">保存设备</button>
+        </div>
+      </div>
+    </section>
   </div>
 
 <script>
@@ -681,18 +745,19 @@ function itemOption(row){
   return item => `<option value="${esc(item.id)}" ${item.id === row.itemId ? 'selected' : ''}>${esc(item.name)}</option>`;
 }
 function renderItems(){
+  const items = data.items.filter(item => item.category === activeCategory);
   document.getElementById('itemsView').innerHTML = `
     ${renderCategoryTabs()}
     <section class="card">
       <div class="between" style="margin-bottom:12px">
-        <h2>设备价格库</h2>
-        <button class="primary" onclick="addItem()">新增设备</button>
+        <h2>设备价格库 · ${esc(activeCategory)} <span class="small">(${items.length})</span></h2>
+        <button class="primary" onclick="openItemModal()">新增设备</button>
       </div>
-      <div class="table-wrap item-table-wrap">
+      ${items.length ? `<div class="table-wrap item-table-wrap">
         <table class="item-table">
           <thead><tr><th>设备名称</th><th>分类</th><th>单价</th><th>备注</th><th></th></tr></thead>
           <tbody>
-            ${data.items.map(item => `<tr>
+            ${items.map(item => `<tr>
               <td data-label="设备名称"><input style="width:100%" value="${esc(item.name)}" onchange="updateItem(${jsArg(item.id)}, 'name', this.value)"></td>
               <td data-label="分类">
                 <select style="width:100%" onchange="updateItem(${jsArg(item.id)}, 'category', this.value)">
@@ -705,7 +770,7 @@ function renderItems(){
             </tr>`).join('')}
           </tbody>
         </table>
-      </div>
+      </div>` : '<div class="empty">当前分类还没有设备，点击“新增设备”添加。</div>'}
     </section>`;
 }
 
@@ -732,8 +797,32 @@ function selectBudgetPlan(category, planId){
   else delete data.selections[category];
   save();
 }
-function addItem(){
-  data.items.push({ id:uid('item'), name:'新设备', category:activeCategory, unitPrice:0, note:'' });
+function renderItemModalCategories(){
+  document.getElementById('newItemCategory').innerHTML = categories().map(category => `<option value="${esc(category)}" ${category === activeCategory ? 'selected' : ''}>${esc(category)}</option>`).join('');
+}
+function openItemModal(){
+  renderItemModalCategories();
+  document.getElementById('newItemName').value = '';
+  document.getElementById('newItemCategory').value = activeCategory;
+  document.getElementById('newItemPrice').value = '';
+  document.getElementById('newItemNote').value = '';
+  document.getElementById('itemModalBackdrop').classList.remove('hidden');
+  setTimeout(() => document.getElementById('newItemName').focus(), 0);
+}
+function closeItemModal(event){
+  const backdrop = document.getElementById('itemModalBackdrop');
+  if (event && event.target !== backdrop) return;
+  backdrop.classList.add('hidden');
+}
+function createItemFromModal(){
+  const name = document.getElementById('newItemName').value.trim() || '新设备';
+  const category = document.getElementById('newItemCategory').value || activeCategory;
+  const unitPrice = Number(document.getElementById('newItemPrice').value || 0);
+  const note = document.getElementById('newItemNote').value.trim();
+  if (!data.categories.includes(category)) data.categories.push(category);
+  activeCategory = category;
+  data.items.push({ id:uid('item'), name, category, unitPrice, note });
+  document.getElementById('itemModalBackdrop').classList.add('hidden');
   save();
 }
 function updateItem(id,key,val){
@@ -834,20 +923,24 @@ function loadGistConfig(){
   try{
     const config = JSON.parse(localStorage.getItem(CONFIG_KEY));
     if (config) {
-      gistId.value = config.gistId || '';
-      gistFilename.value = config.filename || 'renovation-budget.json';
-      gistToken.value = config.token || '';
+      document.getElementById('gistId').value = config.gistId || '';
+      document.getElementById('gistFilename').value = config.filename || 'renovation-budget.json';
+      document.getElementById('gistToken').value = config.token || '';
     }
   }catch{}
 }
 function getGistConfig(){
-  return { gistId:gistId.value.trim(), filename:gistFilename.value.trim() || 'renovation-budget.json', token:gistToken.value.trim() };
+  return {
+    gistId:document.getElementById('gistId').value.trim(),
+    filename:document.getElementById('gistFilename').value.trim() || 'renovation-budget.json',
+    token:document.getElementById('gistToken').value.trim()
+  };
 }
 function saveGistConfig(){
   const config = getGistConfig();
   if (!config.token) { alert('请填写 GitHub token'); return false; }
   localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
-  syncStatus.innerHTML = '<span class="ok">Gist 设置已保存到本机浏览器。</span>';
+  document.getElementById('syncStatus').innerHTML = '<span class="ok">Gist 设置已保存到本机浏览器。</span>';
   return true;
 }
 function hasCloudSyncConfig(){
@@ -858,7 +951,7 @@ function scheduleAutoPush(){
   if (!hasCloudSyncConfig()) return;
   clearTimeout(autoPushTimer);
   autoPushTimer = setTimeout(autoPushGist, 1200);
-  syncStatus.innerHTML = '<span class="warn">本地已保存，稍后自动同步到 Gist。</span>';
+  document.getElementById('syncStatus').innerHTML = '<span class="warn">本地已保存，稍后自动同步到 Gist。</span>';
 }
 async function gistRequest(method, url, body){
   const config = getGistConfig();
@@ -882,10 +975,10 @@ async function createGist(){
       files:{ [config.filename]: { content: JSON.stringify(data,null,2) } }
     };
     const json = await gistRequest('POST','https://api.github.com/gists',body);
-    gistId.value = json.id;
+    document.getElementById('gistId').value = json.id;
     localStorage.setItem(CONFIG_KEY, JSON.stringify({...config,gistId:json.id}));
-    syncStatus.innerHTML = '<span class="ok">已新建 Secret Gist。</span> Gist ID：' + json.id;
-  }catch(err){ syncStatus.textContent = '新建失败：' + err.message; }
+    document.getElementById('syncStatus').innerHTML = '<span class="ok">已新建 Secret Gist。</span> Gist ID：' + json.id;
+  }catch(err){ document.getElementById('syncStatus').textContent = '新建失败：' + err.message; }
 }
 async function pullGist(){
   try{
@@ -898,8 +991,8 @@ async function pullGist(){
     const content = file.content ?? await (await fetch(file.raw_url)).text();
     data = normalizeData(JSON.parse(content));
     save({sync:false});
-    syncStatus.innerHTML = '<span class="ok">已从 Gist 读取。</span> 文件：' + esc(file.filename);
-  }catch(err){ syncStatus.textContent = '读取失败：' + err.message; }
+    document.getElementById('syncStatus').innerHTML = '<span class="ok">已从 Gist 读取。</span> 文件：' + esc(file.filename);
+  }catch(err){ document.getElementById('syncStatus').textContent = '读取失败：' + err.message; }
 }
 async function autoPushGist(){
   if (!hasCloudSyncConfig()) return;
@@ -907,9 +1000,9 @@ async function autoPushGist(){
     const config = getGistConfig();
     const body = { files:{ [config.filename]: { content: JSON.stringify(data,null,2) } } };
     await gistRequest('PATCH','https://api.github.com/gists/'+encodeURIComponent(config.gistId),body);
-    syncStatus.innerHTML = '<span class="ok">已自动保存到 Gist。</span> ' + new Date().toLocaleString();
+    document.getElementById('syncStatus').innerHTML = '<span class="ok">已自动保存到 Gist。</span> ' + new Date().toLocaleString();
   }catch(err){
-    syncStatus.textContent = '自动保存到 Gist 失败：' + err.message;
+    document.getElementById('syncStatus').textContent = '自动保存到 Gist 失败：' + err.message;
   }
 }
 async function pushGist(){
@@ -919,8 +1012,8 @@ async function pushGist(){
     if (!config.gistId) throw new Error('请填写 Gist ID，或先点击“新建 Gist”');
     const body = { files:{ [config.filename]: { content: JSON.stringify(data,null,2) } } };
     await gistRequest('PATCH','https://api.github.com/gists/'+encodeURIComponent(config.gistId),body);
-    syncStatus.innerHTML = '<span class="ok">已保存到 Gist。</span> ' + new Date().toLocaleString();
-  }catch(err){ syncStatus.textContent = '保存失败：' + err.message; }
+    document.getElementById('syncStatus').innerHTML = '<span class="ok">已保存到 Gist。</span> ' + new Date().toLocaleString();
+  }catch(err){ document.getElementById('syncStatus').textContent = '保存失败：' + err.message; }
 }
 
 loadGistConfig();
