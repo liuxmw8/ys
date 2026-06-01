@@ -90,6 +90,16 @@
     }
     .item-line:last-child { border-bottom:0; }
     .item-line strong { font-size:16px; }
+    .item-line-main { display:flex; gap:10px; align-items:flex-start; min-width:0; }
+    .detail-thumb {
+      width:48px;
+      height:48px;
+      border:1px solid var(--line);
+      border-radius:8px;
+      object-fit:cover;
+      background:#f8fafc;
+      flex:0 0 auto;
+    }
     .item-meta { margin-top:4px; color:var(--muted); font-size:13px; line-height:1.5; }
     .summary-money { text-align:right; }
     .summary-money strong { display:block; }
@@ -160,6 +170,15 @@
       background:#f8fafc;
       display:block;
     }
+    .thumb-button {
+      border:0;
+      background:transparent;
+      padding:0;
+      min-height:0;
+      border-radius:8px;
+    }
+    .thumb-button:hover { filter:none; }
+    .thumb-button:focus-visible { outline:3px solid rgba(31,58,95,.22); outline-offset:2px; }
     .item-thumb.empty {
       display:flex;
       align-items:center;
@@ -269,6 +288,7 @@
       .detail-panel { margin:0 0 14px; }
       .detail-panel-head { align-items:flex-start; flex-direction:column; }
       .item-line { grid-template-columns:1fr; gap:4px; }
+      .item-line-main { align-items:flex-start; }
       .summary-line {
         grid-template-columns:1fr;
         gap:4px;
@@ -502,6 +522,34 @@
       </div>
     </section>
   </div>
+  <div id="itemImageModalBackdrop" class="modal-backdrop hidden" onclick="closeItemImageModal(event)">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="itemImageModalTitle" onclick="event.stopPropagation()">
+      <div class="between" style="margin-bottom:12px">
+        <h2 id="itemImageModalTitle">编辑设备图片</h2>
+        <button onclick="closeItemImageModal()">关闭</button>
+      </div>
+      <div class="form-grid">
+        <div class="form-field">
+          <label for="editItemImageUrl">图片链接</label>
+          <input id="editItemImageUrl" placeholder="图片链接，例如 https://...jpg" onchange="setEditImageFromUrl()">
+        </div>
+        <div class="form-field">
+          <label for="editItemImageFile">上传或粘贴图片</label>
+          <div class="image-tools">
+            <input id="editItemImageFile" type="file" accept="image/*" onchange="handleEditImageFile(event)">
+            <div id="editItemImageDrop" class="image-drop" tabindex="0" onpaste="handleEditImagePaste(event)">点击这里后可直接粘贴图片</div>
+            <img id="editItemImagePreview" class="image-preview hidden" alt="设备图片预览">
+            <div id="editItemImageStatus" class="small"></div>
+          </div>
+        </div>
+        <div class="row" style="justify-content:flex-end">
+          <button class="danger" onclick="clearItemImage()">清除图片</button>
+          <button onclick="closeItemImageModal()">取消</button>
+          <button class="primary" onclick="saveItemImage()">保存图片</button>
+        </div>
+      </div>
+    </section>
+  </div>
 
 <script>
 const STORAGE_KEY = 'renovation_budget_compare_gist_v2';
@@ -515,6 +563,8 @@ let autoPushTimer = null;
 let budgetDetailsOpen = false;
 let itemModalPlanId = null;
 let itemModalImage = '';
+let editingImageItemId = null;
+let editingItemImage = '';
 let reportImageDataUrl = '';
 let data = normalizeData(loadLocal() || defaultData());
 
@@ -653,6 +703,7 @@ function selectedItemLines(){
         category: summary.category,
         planName: summary.plan.name,
         itemName: item?.name || '未命名设备',
+        image: item?.image || '',
         qty,
         unitPrice,
         total: unitPrice * qty
@@ -708,9 +759,12 @@ function renderSelectedItemsPanel(){
     </div>
     ${lines.length ? `<div class="item-lines">${lines.map(line => `
       <div class="item-line">
-        <div>
-          <strong>${esc(line.itemName)}</strong>
-          <div class="item-meta">${esc(line.category)} · ${esc(line.planName)}${line.qty !== 1 ? ` · 数量 ${line.qty}` : ''}</div>
+        <div class="item-line-main">
+          ${line.image ? `<img class="detail-thumb" src="${esc(line.image)}" alt="${esc(line.itemName)}">` : ''}
+          <div>
+            <strong>${esc(line.itemName)}</strong>
+            <div class="item-meta">${esc(line.category)} · ${esc(line.planName)}${line.qty !== 1 ? ` · 数量 ${line.qty}` : ''}</div>
+          </div>
         </div>
         <strong>${money(line.total)}</strong>
       </div>`).join('')}</div>` : '<div class="empty">还没有已选设备。</div>'}`;
@@ -1008,9 +1062,10 @@ function renderItems(){
     </section>`;
 }
 function renderItemThumb(item){
-  return item.image
+  const content = item.image
     ? `<img class="item-thumb" src="${esc(item.image)}" alt="${esc(item.name)}">`
     : '<div class="item-thumb empty">无图</div>';
+  return `<button class="thumb-button" title="修改图片" onclick="openItemImageModal(${jsArg(item.id)})">${content}</button>`;
 }
 
 function switchTab(tab){
@@ -1195,6 +1250,78 @@ function handleImagePaste(event){
   if (!imageItem) return;
   event.preventDefault();
   useImageFile(imageItem.getAsFile());
+}
+function openItemImageModal(itemId){
+  const item = data.items.find(next => next.id === itemId);
+  if (!item) return;
+  editingImageItemId = itemId;
+  editingItemImage = item.image || '';
+  document.getElementById('itemImageModalTitle').textContent = `编辑图片：${item.name}`;
+  document.getElementById('editItemImageUrl').value = item.image && !item.image.startsWith('data:') ? item.image : '';
+  document.getElementById('editItemImageFile').value = '';
+  document.getElementById('editItemImageStatus').textContent = item.image ? '当前已有图片，可替换或清除。' : '当前没有图片。';
+  document.getElementById('editItemImageStatus').className = 'small';
+  updateEditImagePreview(editingItemImage);
+  document.getElementById('itemImageModalBackdrop').classList.remove('hidden');
+}
+function closeItemImageModal(event){
+  const backdrop = document.getElementById('itemImageModalBackdrop');
+  if (event && event.target !== backdrop) return;
+  editingImageItemId = null;
+  editingItemImage = '';
+  backdrop.classList.add('hidden');
+}
+function setEditImage(source, message = ''){
+  editingItemImage = source || '';
+  updateEditImagePreview(editingItemImage);
+  const status = document.getElementById('editItemImageStatus');
+  status.textContent = message;
+  status.className = message ? 'small ok' : 'small';
+}
+function updateEditImagePreview(source){
+  const preview = document.getElementById('editItemImagePreview');
+  preview.classList.toggle('hidden', !source);
+  if (source) preview.src = source;
+  else preview.removeAttribute('src');
+}
+function setEditImageFromUrl(){
+  const url = document.getElementById('editItemImageUrl').value.trim();
+  setEditImage(url, url ? '已使用图片链接。' : '');
+}
+async function useEditImageFile(file){
+  if (!file || !file.type?.startsWith('image/')) return;
+  const status = document.getElementById('editItemImageStatus');
+  status.textContent = '正在压缩图片...';
+  status.className = 'small';
+  try{
+    const dataUrl = await resizeImageFile(file);
+    document.getElementById('editItemImageUrl').value = '';
+    setEditImage(dataUrl, '图片已粘贴/上传并压缩。');
+  }catch(err){
+    status.textContent = err.message || '图片处理失败';
+    status.className = 'small warn';
+  }
+}
+function handleEditImageFile(event){
+  useEditImageFile(event.target.files?.[0]);
+}
+function handleEditImagePaste(event){
+  const items = Array.from(event.clipboardData?.items || []);
+  const imageItem = items.find(item => item.type.startsWith('image/'));
+  if (!imageItem) return;
+  event.preventDefault();
+  useEditImageFile(imageItem.getAsFile());
+}
+function clearItemImage(){
+  document.getElementById('editItemImageUrl').value = '';
+  setEditImage('', '已清除图片，保存后生效。');
+}
+function saveItemImage(){
+  const item = data.items.find(next => next.id === editingImageItemId);
+  if (!item) return;
+  item.image = editingItemImage || document.getElementById('editItemImageUrl').value.trim();
+  closeItemImageModal();
+  save();
 }
 function createItemFromModal(){
   const name = document.getElementById('newItemName').value.trim() || '新设备';
