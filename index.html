@@ -936,17 +936,17 @@ function generateBudgetReport(){
   ctx.fillText('设备明细', 70, y);
   y += 24;
   drawReportRow(ctx, y, [
-    { text:'设备', x:70, width:500 },
-    { text:'分类 / 方案', x:570, width:280 },
-    { text:'金额', x:1000, width:100, align:'right' }
+    { text:'设备', x:70, width:330 },
+    { text:'分类 / 方案', x:430, width:330 },
+    { text:'金额', x:1020, width:170, align:'right' }
   ], { fill:'#e8eef6', color:'#1f3a5f', muted:true });
   y += 62;
   if (itemRows.length) {
     itemRows.forEach(line => {
       drawReportRow(ctx, y, [
-        { text:`${line.itemName}${line.qty !== 1 ? ` x${line.qty}` : ''}`, x:70, width:460 },
-        { text:`${line.category} / ${line.planName}`, x:570, width:280 },
-        { text:money(line.total), x:1000, width:100, align:'right' }
+        { text:`${line.itemName}${line.qty !== 1 ? ` x${line.qty}` : ''}`, x:70, width:330 },
+        { text:`${line.category} / ${line.planName}`, x:430, width:330 },
+        { text:money(line.total), x:1020, width:170, align:'right' }
       ], { height:58 });
       y += 58;
     });
