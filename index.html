@@ -112,6 +112,11 @@
       padding:18px;
       box-shadow:0 20px 60px rgba(15,23,42,.25);
     }
+    .modal.report-modal {
+      width:min(760px,100%);
+      max-height:92vh;
+      overflow:auto;
+    }
     .form-grid { display:grid; gap:12px; }
     .form-field label {
       display:block;
@@ -161,6 +166,13 @@
       justify-content:center;
       color:var(--muted);
       font-size:12px;
+    }
+    .report-preview {
+      width:100%;
+      border:1px solid var(--line);
+      border-radius:8px;
+      background:#fff;
+      display:block;
     }
     .tabs, .category-tabs { display:flex; gap:8px; margin:16px 0; overflow:auto; padding-bottom:2px; }
     .tabs button.active, .category-tabs button.active { background:var(--main); color:white; border-color:var(--main); }
@@ -435,6 +447,22 @@
       </div>
       <div class="form-grid">
         <div class="form-field">
+          <label for="newItemName">设备名称</label>
+          <input id="newItemName" placeholder="例如：洗碗机">
+        </div>
+        <div class="form-field">
+          <label for="newItemCategory">分类</label>
+          <select id="newItemCategory"></select>
+        </div>
+        <div class="form-field">
+          <label for="newItemPrice">单价</label>
+          <input id="newItemPrice" type="number" min="0" placeholder="0">
+        </div>
+        <div class="form-field">
+          <label for="newItemNote">备注</label>
+          <input id="newItemNote" placeholder="品牌、安装、购买渠道等">
+        </div>
+        <div class="form-field">
           <label for="newItemShare">京东/淘宝分享链接或分享文案</label>
           <textarea id="newItemShare" onpaste="setTimeout(parseItemShare, 0)" placeholder="可粘贴京东、淘宝的分享文案；如果只粘贴纯链接，部分平台会因跨站限制无法自动拿到名称和价格"></textarea>
           <div class="row" style="margin-top:8px">
@@ -452,26 +480,25 @@
             <div id="itemImageStatus" class="small"></div>
           </div>
         </div>
-        <div class="form-field">
-          <label for="newItemName">设备名称</label>
-          <input id="newItemName" placeholder="例如：洗碗机">
-        </div>
-        <div class="form-field">
-          <label for="newItemCategory">分类</label>
-          <select id="newItemCategory"></select>
-        </div>
-        <div class="form-field">
-          <label for="newItemPrice">单价</label>
-          <input id="newItemPrice" type="number" min="0" placeholder="0">
-        </div>
-        <div class="form-field">
-          <label for="newItemNote">备注</label>
-          <input id="newItemNote" placeholder="品牌、安装、购买渠道等">
-        </div>
         <div class="row" style="justify-content:flex-end">
           <button onclick="closeItemModal()">取消</button>
           <button class="primary" onclick="createItemFromModal()">保存设备</button>
         </div>
+      </div>
+    </section>
+  </div>
+  <div id="reportModalBackdrop" class="modal-backdrop hidden" onclick="closeReportModal(event)">
+    <section class="modal report-modal" role="dialog" aria-modal="true" aria-labelledby="reportModalTitle" onclick="event.stopPropagation()">
+      <div class="between" style="margin-bottom:12px">
+        <div>
+          <h2 id="reportModalTitle">预算报告图片</h2>
+          <p class="small">可下载图片，或在手机上长按保存/分享。</p>
+        </div>
+        <button onclick="closeReportModal()">关闭</button>
+      </div>
+      <img id="reportImagePreview" class="report-preview" alt="预算报告图片">
+      <div class="row" style="justify-content:flex-end;margin-top:12px">
+        <button class="primary" onclick="downloadBudgetReport()">下载图片</button>
       </div>
     </section>
   </div>
@@ -488,6 +515,7 @@ let autoPushTimer = null;
 let budgetDetailsOpen = false;
 let itemModalPlanId = null;
 let itemModalImage = '';
+let reportImageDataUrl = '';
 let data = normalizeData(loadLocal() || defaultData());
 
 function defaultData(){
@@ -711,7 +739,10 @@ function renderBudget(){
       <div class="card">
         <div class="between" style="margin-bottom:10px">
           <h2>整屋方案组合</h2>
-          <button class="primary" onclick="switchTab('plans')">编辑分类方案</button>
+          <div class="row">
+            <button onclick="generateBudgetReport()">生成报告图片</button>
+            <button class="primary" onclick="switchTab('plans')">编辑分类方案</button>
+          </div>
         </div>
         <div class="table-wrap budget-table-wrap">
           <table class="budget-table">
@@ -748,6 +779,147 @@ function renderBudget(){
         </div>
       </aside>
     </section>`;
+}
+function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 2){
+  const chars = String(text || '').split('');
+  const lines = [];
+  let line = '';
+  chars.forEach(char => {
+    const next = line + char;
+    if (ctx.measureText(next).width > maxWidth && line) {
+      lines.push(line);
+      line = char;
+    } else {
+      line = next;
+    }
+  });
+  if (line) lines.push(line);
+  const visible = lines.slice(0, maxLines);
+  if (lines.length > maxLines) visible[visible.length - 1] = visible[visible.length - 1].slice(0, -1) + '…';
+  visible.forEach((part, index) => ctx.fillText(part, x, y + index * lineHeight));
+  return visible.length * lineHeight;
+}
+function drawReportRow(ctx, y, cols, options = {}){
+  const { x = 60, width = 960, height = 62, fill = '#ffffff', color = '#17202a', muted = false } = options;
+  ctx.fillStyle = fill;
+  ctx.fillRect(x, y, width, height);
+  ctx.strokeStyle = '#dfe4ea';
+  ctx.beginPath();
+  ctx.moveTo(x, y + height);
+  ctx.lineTo(x + width, y + height);
+  ctx.stroke();
+  ctx.fillStyle = color;
+  ctx.font = muted ? '24px Microsoft YaHei, Arial' : '28px Microsoft YaHei, Arial';
+  cols.forEach(col => {
+    ctx.textAlign = col.align || 'left';
+    drawWrappedText(ctx, col.text, col.x, y + 39, col.width || 260, 30, col.lines || 1);
+  });
+}
+function generateBudgetReport(){
+  const total = wholeTotal();
+  const planRows = selectedSummaries().filter(row => row.plan);
+  const itemRows = selectedItemLines();
+  const width = 1080;
+  const height = 360 + Math.max(1, planRows.length) * 72 + 94 + Math.max(1, itemRows.length) * 58 + 110;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#f4f6f8';
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(40, 40, width - 80, height - 80);
+  ctx.strokeStyle = '#dfe4ea';
+  ctx.strokeRect(40, 40, width - 80, height - 80);
+
+  ctx.fillStyle = '#17202a';
+  ctx.font = 'bold 46px Microsoft YaHei, Arial';
+  ctx.textAlign = 'left';
+  ctx.fillText('国宾壹号装修预算报告', 70, 110);
+  ctx.font = '24px Microsoft YaHei, Arial';
+  ctx.fillStyle = '#667085';
+  ctx.fillText(new Date().toLocaleString('zh-CN'), 70, 150);
+
+  ctx.fillStyle = '#1f3a5f';
+  ctx.font = 'bold 54px Microsoft YaHei, Arial';
+  ctx.fillText(money(total), 70, 230);
+  ctx.font = '24px Microsoft YaHei, Arial';
+  ctx.fillStyle = '#667085';
+  ctx.fillText(`已选 ${planRows.length} 个分类，${itemRows.length} 项设备`, 70, 268);
+
+  let y = 320;
+  ctx.fillStyle = '#17202a';
+  ctx.font = 'bold 32px Microsoft YaHei, Arial';
+  ctx.fillText('方案预算', 70, y);
+  y += 24;
+  drawReportRow(ctx, y, [
+    { text:'分类', x:70, width:140 },
+    { text:'方案', x:220, width:500 },
+    { text:'金额', x:850, width:130, align:'right' },
+    { text:'占比', x:1000, width:80, align:'right' }
+  ], { fill:'#e8eef6', color:'#1f3a5f', muted:true });
+  y += 62;
+  if (planRows.length) {
+    planRows.forEach(row => {
+      drawReportRow(ctx, y, [
+        { text:row.category, x:70, width:140 },
+        { text:row.plan.name, x:220, width:500 },
+        { text:money(row.total), x:850, width:130, align:'right' },
+        { text:percent(row.total, total), x:1000, width:80, align:'right' }
+      ]);
+      y += 72;
+    });
+  } else {
+    drawReportRow(ctx, y, [{ text:'还没有选择任何方案', x:70, width:800 }]);
+    y += 72;
+  }
+
+  y += 34;
+  ctx.fillStyle = '#17202a';
+  ctx.font = 'bold 32px Microsoft YaHei, Arial';
+  ctx.textAlign = 'left';
+  ctx.fillText('设备明细', 70, y);
+  y += 24;
+  drawReportRow(ctx, y, [
+    { text:'设备', x:70, width:500 },
+    { text:'分类 / 方案', x:570, width:280 },
+    { text:'金额', x:1000, width:100, align:'right' }
+  ], { fill:'#e8eef6', color:'#1f3a5f', muted:true });
+  y += 62;
+  if (itemRows.length) {
+    itemRows.forEach(line => {
+      drawReportRow(ctx, y, [
+        { text:`${line.itemName}${line.qty !== 1 ? ` x${line.qty}` : ''}`, x:70, width:460 },
+        { text:`${line.category} / ${line.planName}`, x:570, width:280 },
+        { text:money(line.total), x:1000, width:100, align:'right' }
+      ], { height:58 });
+      y += 58;
+    });
+  } else {
+    drawReportRow(ctx, y, [{ text:'还没有已选设备', x:70, width:800 }], { height:58 });
+  }
+
+  ctx.fillStyle = '#667085';
+  ctx.font = '22px Microsoft YaHei, Arial';
+  ctx.textAlign = 'left';
+  ctx.fillText('由国宾壹号装修预算工具生成', 70, height - 70);
+
+  reportImageDataUrl = canvas.toDataURL('image/png');
+  document.getElementById('reportImagePreview').src = reportImageDataUrl;
+  document.getElementById('reportModalBackdrop').classList.remove('hidden');
+}
+function closeReportModal(event){
+  const backdrop = document.getElementById('reportModalBackdrop');
+  if (event && event.target !== backdrop) return;
+  backdrop.classList.add('hidden');
+}
+function downloadBudgetReport(){
+  if (!reportImageDataUrl) generateBudgetReport();
+  const link = document.createElement('a');
+  link.href = reportImageDataUrl;
+  link.download = '国宾壹号装修预算报告.png';
+  link.click();
 }
 function renderPlans(){
   const sorted = categoryTotals(activeCategory);
@@ -885,7 +1057,7 @@ function openItemModal(planId = null){
   document.getElementById('itemImageStatus').textContent = '';
   updateImagePreview('');
   document.getElementById('itemModalBackdrop').classList.remove('hidden');
-  setTimeout(() => document.getElementById('newItemShare').focus(), 0);
+  setTimeout(() => document.getElementById('newItemName').focus(), 0);
 }
 function closeItemModal(event){
   const backdrop = document.getElementById('itemModalBackdrop');
