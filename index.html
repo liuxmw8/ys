@@ -129,6 +129,39 @@
       min-height:84px;
       resize:vertical;
     }
+    .image-tools { display:grid; gap:8px; }
+    .image-drop {
+      border:1px dashed var(--line);
+      border-radius:8px;
+      padding:12px;
+      color:var(--muted);
+      background:#fafbfc;
+      text-align:center;
+    }
+    .image-preview {
+      width:96px;
+      height:96px;
+      border:1px solid var(--line);
+      border-radius:8px;
+      object-fit:cover;
+      background:#f8fafc;
+    }
+    .item-thumb {
+      width:58px;
+      height:58px;
+      border:1px solid var(--line);
+      border-radius:8px;
+      object-fit:cover;
+      background:#f8fafc;
+      display:block;
+    }
+    .item-thumb.empty {
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:var(--muted);
+      font-size:12px;
+    }
     .tabs, .category-tabs { display:flex; gap:8px; margin:16px 0; overflow:auto; padding-bottom:2px; }
     .tabs button.active, .category-tabs button.active { background:var(--main); color:white; border-color:var(--main); }
     .category-tabs button { background:#fff; }
@@ -303,7 +336,7 @@
         width:100%;
         min-height:42px;
       }
-      .item-table td:first-child input {
+      .item-table td:nth-child(2) input {
         font-weight:700;
       }
       .item-table td:last-child {
@@ -410,6 +443,16 @@
           </div>
         </div>
         <div class="form-field">
+          <label for="newItemImageUrl">设备图片</label>
+          <div class="image-tools">
+            <input id="newItemImageUrl" placeholder="图片链接，例如 https://...jpg" onchange="setModalImageFromUrl()">
+            <input id="newItemImageFile" type="file" accept="image/*" onchange="handleImageFile(event)">
+            <div id="newItemImageDrop" class="image-drop" tabindex="0" onpaste="handleImagePaste(event)">点击这里后可直接粘贴图片</div>
+            <img id="newItemImagePreview" class="image-preview hidden" alt="设备图片预览">
+            <div id="itemImageStatus" class="small"></div>
+          </div>
+        </div>
+        <div class="form-field">
           <label for="newItemName">设备名称</label>
           <input id="newItemName" placeholder="例如：洗碗机">
         </div>
@@ -444,6 +487,7 @@ let activeCategory = '空调';
 let autoPushTimer = null;
 let budgetDetailsOpen = false;
 let itemModalPlanId = null;
+let itemModalImage = '';
 let data = normalizeData(loadLocal() || defaultData());
 
 function defaultData(){
@@ -511,6 +555,7 @@ function normalizeData(next){
     item.unitPrice = Number(item.unitPrice || 0);
     item.note = item.note || '';
     item.link = item.link || '';
+    item.image = item.image || '';
   });
 
   const itemById = Object.fromEntries(normalized.items.map(item => [item.id, item]));
@@ -771,9 +816,10 @@ function renderItems(){
       </div>
       ${items.length ? `<div class="table-wrap item-table-wrap">
         <table class="item-table">
-          <thead><tr><th>设备名称</th><th>分类</th><th>单价</th><th>备注</th><th></th></tr></thead>
+          <thead><tr><th>图片</th><th>设备名称</th><th>分类</th><th>单价</th><th>备注</th><th></th></tr></thead>
           <tbody>
             ${items.map(item => `<tr>
+              <td data-label="图片">${renderItemThumb(item)}</td>
               <td data-label="设备名称"><input style="width:100%" value="${esc(item.name)}" onchange="updateItem(${jsArg(item.id)}, 'name', this.value)"></td>
               <td data-label="分类">
                 <select style="width:100%" onchange="updateItem(${jsArg(item.id)}, 'category', this.value)">
@@ -788,6 +834,11 @@ function renderItems(){
         </table>
       </div>` : '<div class="empty">当前分类还没有设备，点击“新增设备”添加。</div>'}
     </section>`;
+}
+function renderItemThumb(item){
+  return item.image
+    ? `<img class="item-thumb" src="${esc(item.image)}" alt="${esc(item.name)}">`
+    : '<div class="item-thumb empty">无图</div>';
 }
 
 function switchTab(tab){
@@ -819,15 +870,20 @@ function renderItemModalCategories(){
 function openItemModal(planId = null){
   const plan = data.plans.find(next => next.id === planId);
   itemModalPlanId = plan?.id || null;
+  itemModalImage = '';
   if (plan) activeCategory = plan.category;
   renderItemModalCategories();
   document.getElementById('itemModalTitle').textContent = plan ? '新增设备价格并加入方案' : '新增设备';
   document.getElementById('newItemShare').value = '';
+  document.getElementById('newItemImageUrl').value = '';
+  document.getElementById('newItemImageFile').value = '';
   document.getElementById('newItemName').value = '';
   document.getElementById('newItemCategory').value = activeCategory;
   document.getElementById('newItemPrice').value = '';
   document.getElementById('newItemNote').value = '';
   document.getElementById('itemParseStatus').textContent = '';
+  document.getElementById('itemImageStatus').textContent = '';
+  updateImagePreview('');
   document.getElementById('itemModalBackdrop').classList.remove('hidden');
   setTimeout(() => document.getElementById('newItemShare').focus(), 0);
 }
@@ -839,6 +895,9 @@ function closeItemModal(event){
 }
 function extractFirstUrl(text){
   return (String(text || '').match(/https?:\/\/[^\s，。"'<>]+/i) || [])[0] || '';
+}
+function extractFirstImageUrl(text){
+  return (String(text || '').match(/https?:\/\/[^\s，。"'<>]+\.(?:jpg|jpeg|png|webp|gif)(?:\?[^\s，。"'<>]*)?/i) || [])[0] || '';
 }
 function parsePriceFromText(text){
   const value = String(text || '').match(/(?:¥|￥|RMB|CNY)\s*([0-9]+(?:\.[0-9]{1,2})?)/i)
@@ -873,10 +932,15 @@ function parseItemShare(){
   const parsed = {
     name: parseNameFromText(share),
     price: parsePriceFromText(share),
-    url: extractFirstUrl(share)
+    url: extractFirstUrl(share),
+    imageUrl: extractFirstImageUrl(share)
   };
   if (parsed.name) document.getElementById('newItemName').value = parsed.name;
   if (parsed.price) document.getElementById('newItemPrice').value = parsed.price;
+  if (parsed.imageUrl) {
+    document.getElementById('newItemImageUrl').value = parsed.imageUrl;
+    setModalImage(parsed.imageUrl, '已识别图片链接。');
+  }
   if (parsed.url && !document.getElementById('newItemNote').value.includes(parsed.url)) {
     document.getElementById('newItemNote').value = document.getElementById('newItemNote').value.trim()
       ? document.getElementById('newItemNote').value.trim() + ' ' + parsed.url
@@ -893,6 +957,73 @@ function parseItemShare(){
     status.className = 'small warn';
   }
 }
+function setModalImage(source, message = ''){
+  itemModalImage = source || '';
+  updateImagePreview(itemModalImage);
+  const status = document.getElementById('itemImageStatus');
+  status.textContent = message;
+  status.className = message ? 'small ok' : 'small';
+}
+function setModalImageFromUrl(){
+  const url = document.getElementById('newItemImageUrl').value.trim();
+  if (!url) {
+    setModalImage('');
+    return;
+  }
+  setModalImage(url, '已使用图片链接。');
+}
+function updateImagePreview(source){
+  const preview = document.getElementById('newItemImagePreview');
+  preview.classList.toggle('hidden', !source);
+  if (source) preview.src = source;
+  else preview.removeAttribute('src');
+}
+function resizeImageFile(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('图片读取失败'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('图片解析失败'));
+      img.onload = () => {
+        const max = 900;
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.82));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+async function useImageFile(file){
+  if (!file || !file.type?.startsWith('image/')) return;
+  const status = document.getElementById('itemImageStatus');
+  status.textContent = '正在压缩图片...';
+  status.className = 'small';
+  try{
+    const dataUrl = await resizeImageFile(file);
+    document.getElementById('newItemImageUrl').value = '';
+    setModalImage(dataUrl, '图片已粘贴/上传并压缩。');
+  }catch(err){
+    status.textContent = err.message || '图片处理失败';
+    status.className = 'small warn';
+  }
+}
+function handleImageFile(event){
+  useImageFile(event.target.files?.[0]);
+}
+function handleImagePaste(event){
+  const items = Array.from(event.clipboardData?.items || []);
+  const imageItem = items.find(item => item.type.startsWith('image/'));
+  if (!imageItem) return;
+  event.preventDefault();
+  useImageFile(imageItem.getAsFile());
+}
 function createItemFromModal(){
   const name = document.getElementById('newItemName').value.trim() || '新设备';
   const category = document.getElementById('newItemCategory').value || activeCategory;
@@ -900,7 +1031,8 @@ function createItemFromModal(){
   const note = document.getElementById('newItemNote').value.trim();
   if (!data.categories.includes(category)) data.categories.push(category);
   activeCategory = category;
-  const item = { id:uid('item'), name, category, unitPrice, note, link:extractFirstUrl(document.getElementById('newItemShare').value) };
+  const image = itemModalImage || document.getElementById('newItemImageUrl').value.trim();
+  const item = { id:uid('item'), name, category, unitPrice, note, link:extractFirstUrl(document.getElementById('newItemShare').value), image };
   data.items.push(item);
   const plan = data.plans.find(next => next.id === itemModalPlanId);
   if (plan) {
