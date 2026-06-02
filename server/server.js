@@ -23,7 +23,6 @@ await ensureDataFile();
 const app = express();
 app.set('trust proxy', true);
 app.use(express.json({ limit: '25mb' }));
-app.use(basicAuth);
 app.use('/uploads', express.static(uploadDir, { maxAge: '30d', immutable: true }));
 app.use(express.static(publicDir));
 
@@ -46,6 +45,10 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
 });
 
+app.get('/api/auth/check', requireEditor, (_req, res) => {
+  res.json({ ok: true });
+});
+
 app.get('/api/data', async (_req, res, next) => {
   try {
     res.json(await readData());
@@ -54,7 +57,7 @@ app.get('/api/data', async (_req, res, next) => {
   }
 });
 
-app.put('/api/data', async (req, res, next) => {
+app.put('/api/data', requireEditor, async (req, res, next) => {
   try {
     validateData(req.body);
     await writeJsonAtomic(dataFile, req.body);
@@ -64,7 +67,7 @@ app.put('/api/data', async (req, res, next) => {
   }
 });
 
-app.post('/api/upload', upload.single('image'), (req, res) => {
+app.post('/api/upload', requireEditor, upload.single('image'), (req, res) => {
   if (!req.file) {
     res.status(400).json({ error: '请上传图片文件' });
     return;
@@ -72,7 +75,7 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
   res.json({ url: `/uploads/${req.file.filename}` });
 });
 
-app.post('/api/fetch-product', async (req, res) => {
+app.post('/api/fetch-product', requireEditor, async (req, res) => {
   const input = String(req.body?.url || req.body?.text || '').trim();
   if (!input) {
     res.status(400).json({ error: '请提供商品链接或分享文案' });
@@ -144,7 +147,7 @@ function safeExt(name, mime) {
   return '.jpg';
 }
 
-function basicAuth(req, res, next) {
+function requireEditor(req, res, next) {
   if (!appPassword) return next();
   const header = req.headers.authorization || '';
   const [scheme, encoded] = header.split(' ');
@@ -158,8 +161,7 @@ function basicAuth(req, res, next) {
 }
 
 function authRequired(res) {
-  res.setHeader('WWW-Authenticate', 'Basic realm="Renovation Budget"');
-  res.status(401).send('Authentication required');
+  res.status(401).json({ error: '请先登录编辑账号' });
 }
 
 function firstUrl(text) {

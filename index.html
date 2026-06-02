@@ -56,6 +56,12 @@
       outline:0;
       box-shadow:inset 0 -2px 0 var(--main);
     }
+    .app-title-input[readonly] {
+      cursor:default;
+      color:var(--text);
+      background:transparent;
+      opacity:1;
+    }
     h2 { margin:0 0 12px; font-size:20px; letter-spacing:0; }
     h3 { margin:0; font-size:16px; letter-spacing:0; }
     p { margin:8px 0 0; color:var(--muted); line-height:1.6; }
@@ -92,6 +98,17 @@
       border-color:var(--main);
       box-shadow:0 0 0 3px rgba(15,118,110,.14);
     }
+    input:disabled,
+    select:disabled,
+    textarea:disabled,
+    button:disabled {
+      cursor:not-allowed;
+      color:#94a3b8;
+      background:#f8fafc;
+      box-shadow:none;
+      opacity:.78;
+    }
+    button:disabled:hover { filter:none; box-shadow:none; }
     input[type="number"] { width:110px; }
     table { width:100%; border-collapse:collapse; }
     th, td { border-bottom:1px solid var(--line); padding:12px 8px; text-align:left; vertical-align:middle; }
@@ -296,6 +313,23 @@
     .muted { color:var(--muted); }
     .hidden { display:none; }
     .status { font-size:13px; color:var(--muted); margin-top:8px; }
+    .auth-status {
+      display:inline-flex;
+      align-items:center;
+      min-height:32px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      padding:5px 10px;
+      background:rgba(255,255,255,.78);
+      color:var(--muted);
+      font-size:13px;
+      white-space:nowrap;
+    }
+    .auth-status.editing {
+      border-color:rgba(15,118,110,.28);
+      background:#ccfbf1;
+      color:#0f766e;
+    }
     .ok { color:var(--ok); }
     .warn { color:var(--warn); }
     .empty { padding:22px; border:1px dashed var(--line); border-radius:8px; color:var(--muted); background:#f8fafc; }
@@ -460,8 +494,12 @@
   <div class="wrap mx-auto max-w-7xl px-3 py-5 pb-14 sm:px-4 lg:px-6">
     <header class="flex flex-col gap-3 border-b border-budget-line/80 md:flex-row md:items-end md:justify-between">
       <div class="min-w-0">
-        <input id="appTitleInput" class="app-title-input" value="国宾壹号装修预算" maxlength="40" onblur="updateAppTitle(this.value)" onkeydown="handleTitleKey(event)" aria-label="预算标题">
+        <input id="appTitleInput" class="app-title-input" value="国宾壹号装修预算" maxlength="40" onfocus="handleTitleFocus(event)" onblur="updateAppTitle(this.value)" onkeydown="handleTitleKey(event)" aria-label="预算标题">
         <p class="max-w-3xl text-sm leading-6 text-budget-muted">按空调、净水、厨电、卫浴、智能家居、家具等用途分类比较方案，并把每类选中的方案汇总成整屋预算。</p>
+      </div>
+      <div class="row md:justify-end">
+        <span id="editModeStatus" class="auth-status">公开查看</span>
+        <button id="editLoginButton" class="primary" onclick="openAuthModal()">登录编辑</button>
       </div>
     </header>
 
@@ -480,53 +518,38 @@
       <button id="tabBudget" class="active" onclick="switchTab('budget')">整屋预算</button>
       <button id="tabPlans" onclick="switchTab('plans')">分类方案</button>
       <button id="tabItems" onclick="switchTab('items')">设备价格库</button>
-      <button id="tabSync" onclick="switchTab('sync')">同步设置</button>
-      <button id="tabHelp" onclick="switchTab('help')">部署说明</button>
     </nav>
 
     <main id="budgetView"></main>
     <main id="plansView" class="hidden"></main>
     <main id="itemsView" class="hidden"></main>
-    <main id="syncView" class="hidden">
-      <section class="card">
-        <h2>Gist 云同步设置</h2>
-        <div class="sync-box">
-          <div>
-            <div class="small">Gist ID</div>
-            <input id="gistId" style="width:100%" placeholder="例如：a1b2c3d4e5f6...">
-          </div>
-          <div>
-            <div class="small">Gist 文件名</div>
-            <input id="gistFilename" style="width:100%" value="renovation-budget.json">
-          </div>
-          <div style="grid-column:1 / -1">
-            <div class="small">GitHub token 只需要勾选 gist 权限；只保存在本机浏览器。</div>
-            <input id="gistToken" type="password" style="width:100%" placeholder="ghp_xxx 或 github_pat_xxx">
-          </div>
-          <div class="row" style="grid-column:1 / -1">
-            <button class="primary" onclick="saveGistConfig()">保存设置</button>
-            <button onclick="createGist()">新建 Gist</button>
-            <button onclick="pullGist()">从 Gist 读取</button>
-            <button onclick="pushGist()">保存到 Gist</button>
-          </div>
+    <div id="syncStatus" class="hidden"></div>
+  </div>
+  <div id="authModalBackdrop" class="modal-backdrop hidden" onclick="closeAuthModal(event)">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="authModalTitle" onclick="event.stopPropagation()">
+      <div class="between" style="margin-bottom:12px">
+        <div>
+          <h2 id="authModalTitle">登录编辑</h2>
+          <p class="small">公开查看不需要登录；修改预算、上传图片或保存数据时需要编辑账号。</p>
         </div>
-        <div id="syncStatus" class="status">未连接 Gist。当前数据会先保存在本机浏览器。</div>
-        <p class="small warn">推荐创建 Secret Gist。token 不要写进网页源码，每台设备首次打开时手动填写一次即可。</p>
-      </section>
-    </main>
-    <main id="helpView" class="hidden">
-      <section class="card help">
-        <h2>GitHub Pages + Gist 同步步骤</h2>
-        <ol>
-          <li>仓库 Settings → Pages → Source 选择 <code>Deploy from a branch</code>。</li>
-          <li>Branch 选择 <code>main / root</code>，保存后等待 GitHub Pages 部署。</li>
-          <li>创建 GitHub token：进入 <code>https://github.com/settings/tokens</code>，Classic token 只勾选 <code>gist</code>。</li>
-          <li>打开部署好的网页，填写 token 和文件名，点击 <code>新建 Gist</code>。</li>
-          <li>其他设备填写同一个 Gist ID、文件名和 token，即可读取或保存同一份预算数据。</li>
-        </ol>
-        <p class="warn">这是个人工具方案，不适合多人同时编辑。同一时间多台设备保存时，后保存的数据会覆盖先保存的数据。</p>
-      </section>
-    </main>
+        <button onclick="closeAuthModal()">关闭</button>
+      </div>
+      <div class="form-grid">
+        <div class="form-field">
+          <label for="editUsername">用户名</label>
+          <input id="editUsername" autocomplete="username" placeholder="请输入用户名">
+        </div>
+        <div class="form-field">
+          <label for="editPassword">密码</label>
+          <input id="editPassword" type="password" autocomplete="current-password" placeholder="请输入密码" onkeydown="handleAuthKey(event)">
+        </div>
+        <div id="authModalStatus" class="status">登录后会在当前浏览器会话中保持编辑权限。</div>
+        <div class="row" style="justify-content:flex-end">
+          <button onclick="closeAuthModal()">取消</button>
+          <button class="primary" onclick="loginEditor()">登录</button>
+        </div>
+      </div>
+    </section>
   </div>
   <div id="itemModalBackdrop" class="modal-backdrop hidden" onclick="closeItemModal(event)">
     <section class="modal" role="dialog" aria-modal="true" aria-labelledby="itemModalTitle" onclick="event.stopPropagation()">
@@ -638,6 +661,8 @@ let editingItemImage = '';
 let reportImageDataUrl = '';
 let useServerApi = false;
 let serverSaveTimer = null;
+let isEditor = false;
+let editorCredentials = loadEditorCredentials();
 let data = normalizeData(loadLocal() || defaultData());
 
 function defaultData(){
@@ -689,6 +714,21 @@ function signedMoney(n){ return (n >= 0 ? '+' : '-') + money(Math.abs(n)); }
 function appTitle(){ return data.appTitle || DEFAULT_APP_TITLE; }
 function esc(s){ return String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
 function jsArg(value){ return esc(JSON.stringify(value)); }
+function editorDisabled(){ return isEditor ? '' : 'disabled'; }
+function editorOnly(html){ return isEditor ? html : ''; }
+function editHint(){ return isEditor ? '' : '<div class="small warn" style="margin-top:10px">当前为公开查看模式。登录编辑后可以修改和保存。</div>'; }
+function loadEditorCredentials(){
+  try { return JSON.parse(sessionStorage.getItem('renovation_budget_editor_auth_v1')) || null; } catch { return null; }
+}
+function authHeader(){
+  if (!editorCredentials?.username || !editorCredentials?.password) return {};
+  return { Authorization:'Basic ' + btoa(unescape(encodeURIComponent(editorCredentials.username + ':' + editorCredentials.password))) };
+}
+function requireEditor(message = '请先登录编辑账号。'){
+  if (isEditor) return true;
+  openAuthModal(message);
+  return false;
+}
 function loadLocal(){
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY)); } catch { return null; }
 }
@@ -745,6 +785,12 @@ function normalizeData(next){
   return normalized;
 }
 function save(options = {}){
+  if (!isEditor) {
+    showEditStatus('公开查看模式不能保存，请先登录编辑。', 'warn');
+    openAuthModal();
+    render();
+    return;
+  }
   data = normalizeData(data);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   render();
@@ -762,7 +808,7 @@ async function loadServerData(){
     data = normalizeData(next);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     useServerApi = true;
-    document.getElementById('syncStatus').innerHTML = '<span class="ok">已连接服务器数据。</span>';
+    showEditStatus('已连接服务器数据。', 'ok');
     return true;
   }catch{
     return false;
@@ -771,24 +817,104 @@ async function loadServerData(){
 function scheduleServerSave(){
   clearTimeout(serverSaveTimer);
   serverSaveTimer = setTimeout(pushServerData, 800);
-  document.getElementById('syncStatus').innerHTML = '<span class="warn">本地已保存，稍后同步到服务器。</span>';
+  showEditStatus('本地已保存，稍后同步到服务器。', 'warn');
 }
 async function pushServerData(){
   if (!useServerApi) return;
+  if (!isEditor) {
+    showEditStatus('请先登录编辑账号。', 'warn');
+    openAuthModal();
+    return;
+  }
   try{
     const res = await fetch('/api/data', {
       method:'PUT',
-      headers:{ 'Content-Type':'application/json' },
+      headers:{ 'Content-Type':'application/json', ...authHeader() },
       body:JSON.stringify(data)
     });
     if (!res.ok) {
       const err = await res.json().catch(()=>({}));
       throw new Error(err.error || ('服务器保存失败：' + res.status));
     }
-    document.getElementById('syncStatus').innerHTML = '<span class="ok">已保存到服务器。</span> ' + new Date().toLocaleString();
+    showEditStatus('已保存到服务器。 ' + new Date().toLocaleString(), 'ok');
   }catch(err){
-    document.getElementById('syncStatus').textContent = '保存到服务器失败：' + err.message;
+    showEditStatus('保存到服务器失败：' + err.message, 'warn');
   }
+}
+function showEditStatus(message, tone = ''){
+  const status = document.getElementById('editModeStatus');
+  if (!status) return;
+  status.textContent = message || (isEditor ? '编辑模式' : '公开查看');
+  status.classList.toggle('editing', isEditor || tone === 'ok');
+}
+function renderAuthState(){
+  const status = document.getElementById('editModeStatus');
+  const button = document.getElementById('editLoginButton');
+  if (status) {
+    status.textContent = isEditor ? '编辑模式' : '公开查看';
+    status.classList.toggle('editing', isEditor);
+  }
+  if (button) {
+    button.textContent = isEditor ? '退出编辑' : '登录编辑';
+    button.onclick = isEditor ? logoutEditor : openAuthModal;
+  }
+}
+function openAuthModal(message = ''){
+  const backdrop = document.getElementById('authModalBackdrop');
+  if (!backdrop) return;
+  document.getElementById('authModalStatus').textContent = message || '登录后会在当前浏览器会话中保持编辑权限。';
+  document.getElementById('authModalStatus').className = message ? 'status warn' : 'status';
+  document.getElementById('editUsername').value = editorCredentials?.username || '';
+  document.getElementById('editPassword').value = editorCredentials?.password || '';
+  backdrop.classList.remove('hidden');
+  setTimeout(() => document.getElementById(editorCredentials?.username ? 'editPassword' : 'editUsername').focus(), 0);
+}
+function closeAuthModal(event){
+  const backdrop = document.getElementById('authModalBackdrop');
+  if (event && event.target !== backdrop) return;
+  backdrop.classList.add('hidden');
+}
+function handleAuthKey(event){
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    loginEditor();
+  }
+}
+async function loginEditor(){
+  const username = document.getElementById('editUsername').value.trim();
+  const password = document.getElementById('editPassword').value;
+  const status = document.getElementById('authModalStatus');
+  if (!username || !password) {
+    status.textContent = '请填写用户名和密码。';
+    status.className = 'status warn';
+    return;
+  }
+  status.textContent = '正在验证...';
+  status.className = 'status';
+  const nextCredentials = { username, password };
+  try{
+    const res = await fetch('/api/auth/check', {
+      headers:{ Authorization:'Basic ' + btoa(unescape(encodeURIComponent(username + ':' + password))) }
+    });
+    const json = await res.json().catch(()=>({}));
+    if (!res.ok) throw new Error(json.error || '账号或密码不正确');
+    editorCredentials = nextCredentials;
+    sessionStorage.setItem('renovation_budget_editor_auth_v1', JSON.stringify(editorCredentials));
+    isEditor = true;
+    closeAuthModal();
+    render();
+    showEditStatus('已进入编辑模式。', 'ok');
+  }catch(err){
+    status.textContent = err.message || '登录失败';
+    status.className = 'status warn';
+  }
+}
+function logoutEditor(){
+  isEditor = false;
+  editorCredentials = null;
+  sessionStorage.removeItem('renovation_budget_editor_auth_v1');
+  render();
+  showEditStatus('已退出编辑，当前公开查看。');
 }
 function itemMap(){ return Object.fromEntries(data.items.map(i => [i.id, i])); }
 function categories(){ return data.categories; }
@@ -830,6 +956,7 @@ function selectedItemLines(){
 }
 
 function render(){
+  renderAuthState();
   renderAppTitle();
   renderStats();
   renderBudget();
@@ -840,9 +967,16 @@ function renderAppTitle(){
   const title = appTitle();
   document.title = title;
   const input = document.getElementById('appTitleInput');
-  if (input && document.activeElement !== input) input.value = title;
+  if (input) {
+    input.readOnly = !isEditor;
+    if (document.activeElement !== input) input.value = title;
+  }
 }
 function updateAppTitle(value){
+  if (!isEditor) {
+    renderAppTitle();
+    return;
+  }
   const title = String(value || '').trim() || DEFAULT_APP_TITLE;
   if (data.appTitle === title) {
     renderAppTitle();
@@ -850,6 +984,11 @@ function updateAppTitle(value){
   }
   data.appTitle = title;
   save();
+}
+function handleTitleFocus(event){
+  if (isEditor) return;
+  event.currentTarget.blur();
+  openAuthModal('登录编辑后可以修改标题。');
 }
 function handleTitleKey(event){
   if (event.key === 'Enter') {
@@ -920,7 +1059,7 @@ function handleBudgetCardKey(event){
 function renderCategoryTabs(){
   return `<nav class="category-tabs">
     ${categories().map(category => `<button class="${category === activeCategory ? 'active' : ''}" onclick="setActiveCategory(${jsArg(category)})">${esc(category)}</button>`).join('')}
-    <button onclick="addCategory()">新增分类</button>
+    ${editorOnly('<button onclick="addCategory()">新增分类</button>')}
   </nav>`;
 }
 function renderBudget(){
@@ -933,7 +1072,7 @@ function renderBudget(){
           <h2>整屋方案组合</h2>
           <div class="row">
             <button onclick="generateBudgetReport()">生成报告图片</button>
-            <button class="primary" onclick="switchTab('plans')">编辑分类方案</button>
+            <button class="primary" onclick="${isEditor ? "switchTab('plans')" : "openAuthModal('登录编辑后可以修改分类方案。')"}">${isEditor ? '编辑分类方案' : '登录编辑'}</button>
           </div>
         </div>
         <div class="table-wrap budget-table-wrap">
@@ -945,7 +1084,7 @@ function renderBudget(){
                 return `<tr>
                   <td data-label="分类"><strong>${esc(row.category)}</strong></td>
                   <td data-label="选择方案">
-                    <select style="width:100%" onchange="selectBudgetPlan(${jsArg(row.category)}, this.value)">
+                    <select style="width:100%" ${editorDisabled()} onchange="selectBudgetPlan(${jsArg(row.category)}, this.value)">
                       <option value="">不选择</option>
                       ${plans.map(plan => `<option value="${esc(plan.id)}" ${row.plan?.id === plan.id ? 'selected' : ''}>${esc(plan.name)}（${money(planTotal(plan))}）</option>`).join('')}
                     </select>
@@ -958,6 +1097,7 @@ function renderBudget(){
           </table>
         </div>
         <div class="budget-total"><span>合计</span><span>${money(wholeTotal())}</span></div>
+        ${editHint()}
       </div>
       <aside class="card">
         <h2>当前组合清单</h2>
@@ -1125,7 +1265,7 @@ function renderPlans(){
     ${renderCategoryTabs()}
     <div class="between" style="margin-bottom:12px">
       <h2>${esc(activeCategory)}方案对比</h2>
-      <button class="primary" onclick="addPlan()">新增方案</button>
+      ${isEditor ? '<button class="primary" onclick="addPlan()">新增方案</button>' : `<button class="primary" onclick="openAuthModal(${jsArg('登录编辑后可以新增方案。')})">登录编辑</button>`}
     </div>
     ${plans.length ? `<div class="plan-grid">${plans.map(plan => renderPlanCard(plan, min)).join('')}</div>` : `<section class="card"><div class="empty">这个分类还没有方案，可以先新增一个方案。</div></section>`}`;
 }
@@ -1134,12 +1274,12 @@ function renderPlanCard(plan, min){
   const isSelected = data.selections?.[plan.category] === plan.id;
   return `<section class="card">
     <div class="plan-head">
-      <input class="plan-title" value="${esc(plan.name)}" onchange="updatePlan(${jsArg(plan.id)}, 'name', this.value)">
-      <select onchange="updatePlan(${jsArg(plan.id)}, 'category', this.value)">
+      <input class="plan-title" value="${esc(plan.name)}" ${editorDisabled()} onchange="updatePlan(${jsArg(plan.id)}, 'name', this.value)">
+      <select ${editorDisabled()} onchange="updatePlan(${jsArg(plan.id)}, 'category', this.value)">
         ${categories().map(category => `<option value="${esc(category)}" ${category === plan.category ? 'selected' : ''}>${esc(category)}</option>`).join('')}
       </select>
-      <button onclick="duplicatePlan(${jsArg(plan.id)})">复制</button>
-      <button class="danger" onclick="removePlan(${jsArg(plan.id)})">删除</button>
+      ${editorOnly(`<button onclick="duplicatePlan(${jsArg(plan.id)})">复制</button>`)}
+      ${editorOnly(`<button class="danger" onclick="removePlan(${jsArg(plan.id)})">删除</button>`)}
     </div>
     <div class="plan-total">
       <div><div class="small">总价</div><div class="money">${money(total)}</div></div>
@@ -1147,9 +1287,9 @@ function renderPlanCard(plan, min){
     </div>
     ${(plan.rows || []).map(row => renderPlanRow(plan, row)).join('')}
     <div class="row" style="margin-top:10px">
-      <button onclick="addRow(${jsArg(plan.id)})">添加设备</button>
-      <button onclick="openItemModal(${jsArg(plan.id)})">新增设备价格</button>
-      <button class="${isSelected ? 'selected' : 'primary'}" onclick="selectBudgetPlan(${jsArg(plan.category)}, ${jsArg(plan.id)})">${isSelected ? '已加入整屋预算' : '加入整屋预算'}</button>
+      ${editorOnly(`<button onclick="addRow(${jsArg(plan.id)})">添加设备</button>`)}
+      ${editorOnly(`<button onclick="openItemModal(${jsArg(plan.id)})">新增设备价格</button>`)}
+      ${isEditor ? `<button class="${isSelected ? 'selected' : 'primary'}" onclick="selectBudgetPlan(${jsArg(plan.category)}, ${jsArg(plan.id)})">${isSelected ? '已加入整屋预算' : '加入整屋预算'}</button>` : `<div class="small">${isSelected ? '当前整屋预算已选择此方案' : '登录编辑后可加入整屋预算'}</div>`}
     </div>
   </section>`;
 }
@@ -1164,10 +1304,10 @@ function renderPlanRow(plan, row){
     otherItems.length ? `<optgroup label="其他分类">${otherItems.map(itemOption(row)).join('')}</optgroup>` : ''
   ].join('');
   return `<div class="line">
-    <select onchange="updateRow(${jsArg(plan.id)}, ${jsArg(row.id)}, 'itemId', this.value)">${options}</select>
-    <input type="number" min="0" value="${esc(row.qty)}" onchange="updateRow(${jsArg(plan.id)}, ${jsArg(row.id)}, 'qty', Number(this.value))">
+    <select ${editorDisabled()} onchange="updateRow(${jsArg(plan.id)}, ${jsArg(row.id)}, 'itemId', this.value)">${options}</select>
+    <input type="number" min="0" value="${esc(row.qty)}" ${editorDisabled()} onchange="updateRow(${jsArg(plan.id)}, ${jsArg(row.id)}, 'qty', Number(this.value))">
     <div style="text-align:right;font-weight:750">${money(line)}</div>
-    <button class="danger" onclick="removeRow(${jsArg(plan.id)}, ${jsArg(row.id)})">×</button>
+    ${isEditor ? `<button class="danger" onclick="removeRow(${jsArg(plan.id)}, ${jsArg(row.id)})">×</button>` : ''}
   </div>`;
 }
 function itemOption(row){
@@ -1180,7 +1320,7 @@ function renderItems(){
     <section class="card">
       <div class="between" style="margin-bottom:12px">
         <h2>设备价格库 · ${esc(activeCategory)} <span class="small">(${items.length})</span></h2>
-        <button class="primary" onclick="openItemModal()">新增设备</button>
+        ${isEditor ? '<button class="primary" onclick="openItemModal()">新增设备</button>' : `<button class="primary" onclick="openAuthModal(${jsArg('登录编辑后可以新增设备。')})">登录编辑</button>`}
       </div>
       ${items.length ? `<div class="table-wrap item-table-wrap">
         <table class="item-table">
@@ -1188,15 +1328,15 @@ function renderItems(){
           <tbody>
             ${items.map(item => `<tr>
               <td data-label="图片">${renderItemThumb(item)}</td>
-              <td data-label="设备名称"><input style="width:100%" value="${esc(item.name)}" onchange="updateItem(${jsArg(item.id)}, 'name', this.value)"></td>
+              <td data-label="设备名称"><input style="width:100%" value="${esc(item.name)}" ${editorDisabled()} onchange="updateItem(${jsArg(item.id)}, 'name', this.value)"></td>
               <td data-label="分类">
-                <select style="width:100%" onchange="updateItem(${jsArg(item.id)}, 'category', this.value)">
+                <select style="width:100%" ${editorDisabled()} onchange="updateItem(${jsArg(item.id)}, 'category', this.value)">
                   ${categories().map(category => `<option value="${esc(category)}" ${category === item.category ? 'selected' : ''}>${esc(category)}</option>`).join('')}
                 </select>
               </td>
-              <td data-label="单价"><input type="number" value="${esc(item.unitPrice)}" onchange="updateItem(${jsArg(item.id)}, 'unitPrice', Number(this.value))"></td>
-              <td data-label="备注"><input style="width:100%" value="${esc(item.note)}" onchange="updateItem(${jsArg(item.id)}, 'note', this.value)"></td>
-              <td><button class="danger" onclick="removeItem(${jsArg(item.id)})">删除</button></td>
+              <td data-label="单价"><input type="number" value="${esc(item.unitPrice)}" ${editorDisabled()} onchange="updateItem(${jsArg(item.id)}, 'unitPrice', Number(this.value))"></td>
+              <td data-label="备注"><input style="width:100%" value="${esc(item.note)}" ${editorDisabled()} onchange="updateItem(${jsArg(item.id)}, 'note', this.value)"></td>
+              <td>${editorOnly(`<button class="danger" onclick="removeItem(${jsArg(item.id)})">删除</button>`)}</td>
             </tr>`).join('')}
           </tbody>
         </table>
@@ -1207,12 +1347,14 @@ function renderItemThumb(item){
   const content = item.image
     ? `<img class="item-thumb" src="${esc(item.image)}" alt="${esc(item.name)}">`
     : '<div class="item-thumb empty">无图</div>';
-  return `<button class="thumb-button" title="修改图片" onclick="openItemImageModal(${jsArg(item.id)})">${content}</button>`;
+  return isEditor
+    ? `<button class="thumb-button" title="修改图片" onclick="openItemImageModal(${jsArg(item.id)})">${content}</button>`
+    : content;
 }
 
 function switchTab(tab){
   currentTab = tab;
-  ['budget','plans','items','sync','help'].forEach(name => {
+  ['budget','plans','items'].forEach(name => {
     document.getElementById(name + 'View').classList.toggle('hidden', tab !== name);
     document.getElementById('tab' + name.charAt(0).toUpperCase() + name.slice(1)).classList.toggle('active', tab === name);
   });
@@ -1220,6 +1362,7 @@ function switchTab(tab){
 function setActiveCategory(category){ activeCategory = category; render(); switchTab(currentTab); }
 function focusCategory(category){ activeCategory = category; render(); switchTab('plans'); }
 function addCategory(){
+  if (!requireEditor('登录编辑后可以新增分类。')) return;
   const name = prompt('请输入新分类名称');
   const category = String(name || '').trim();
   if (!category) return;
@@ -1228,6 +1371,7 @@ function addCategory(){
   save();
 }
 function selectBudgetPlan(category, planId){
+  if (!requireEditor('登录编辑后可以修改整屋预算选择。')) return;
   data.selections = data.selections || {};
   if (planId) data.selections[category] = planId;
   else delete data.selections[category];
@@ -1237,6 +1381,7 @@ function renderItemModalCategories(){
   document.getElementById('newItemCategory').innerHTML = categories().map(category => `<option value="${esc(category)}" ${category === activeCategory ? 'selected' : ''}>${esc(category)}</option>`).join('');
 }
 function openItemModal(planId = null){
+  if (!requireEditor('登录编辑后可以新增设备。')) return;
   const plan = data.plans.find(next => next.id === planId);
   itemModalPlanId = plan?.id || null;
   itemModalImage = '';
@@ -1370,10 +1515,11 @@ function resizeImageFile(file){
   });
 }
 async function prepareImageFile(file){
+  if (!requireEditor('登录编辑后可以上传图片。')) throw new Error('请先登录编辑账号');
   if (!useServerApi) return resizeImageFile(file);
   const form = new FormData();
   form.append('image', file);
-  const res = await fetch('/api/upload', { method:'POST', body:form });
+  const res = await fetch('/api/upload', { method:'POST', headers:authHeader(), body:form });
   const json = await res.json().catch(()=>({}));
   if (!res.ok) throw new Error(json.error || '图片上传失败');
   return json.url;
@@ -1403,6 +1549,7 @@ function handleImagePaste(event){
   useImageFile(imageItem.getAsFile());
 }
 function openItemImageModal(itemId){
+  if (!requireEditor('登录编辑后可以修改图片。')) return;
   const item = data.items.find(next => next.id === itemId);
   if (!item) return;
   editingImageItemId = itemId;
@@ -1468,20 +1615,22 @@ function clearItemImage(){
   setEditImage('', '已清除图片，保存后生效。');
 }
 function saveItemImage(){
+  if (!requireEditor()) return;
   const item = data.items.find(next => next.id === editingImageItemId);
   if (!item) return;
   item.image = editingItemImage || document.getElementById('editItemImageUrl').value.trim();
   save({sync:false});
   closeItemImageModal();
   if (useServerApi) {
-    document.getElementById('syncStatus').innerHTML = '<span class="warn">图片已保存，正在同步到服务器。</span>';
+    showEditStatus('图片已保存，正在同步到服务器。', 'warn');
     pushServerData();
   } else if (hasCloudSyncConfig()) {
-    document.getElementById('syncStatus').innerHTML = '<span class="warn">图片已保存，正在同步到 Gist。</span>';
+    showEditStatus('图片已保存，正在同步到 Gist。', 'warn');
     autoPushGist();
   }
 }
 function createItemFromModal(){
+  if (!requireEditor()) return;
   const name = document.getElementById('newItemName').value.trim() || '新设备';
   const category = document.getElementById('newItemCategory').value || activeCategory;
   const unitPrice = Number(document.getElementById('newItemPrice').value || 0);
@@ -1500,17 +1649,20 @@ function createItemFromModal(){
   save();
 }
 function updateItem(id,key,val){
+  if (!requireEditor()) return;
   const item = data.items.find(next => next.id === id);
   if (!item) return;
   item[key] = val;
   save();
 }
 function removeItem(id){
+  if (!requireEditor()) return;
   data.items = data.items.filter(item => item.id !== id);
   data.plans.forEach(plan => plan.rows = plan.rows.filter(row => row.itemId !== id));
   save();
 }
 function addPlan(){
+  if (!requireEditor('登录编辑后可以新增方案。')) return;
   const firstItem = data.items.find(item => item.category === activeCategory) || data.items[0];
   const plan = { id:uid('plan'), category:activeCategory, name:activeCategory + '新方案', rows:[] };
   if (firstItem) plan.rows.push({ id:uid('row'), itemId:firstItem.id, qty:1 });
@@ -1518,6 +1670,7 @@ function addPlan(){
   save();
 }
 function updatePlan(id,key,val){
+  if (!requireEditor()) return;
   const plan = data.plans.find(next => next.id === id);
   if (!plan) return;
   const oldCategory = plan.category;
@@ -1530,12 +1683,14 @@ function updatePlan(id,key,val){
   save();
 }
 function removePlan(id){
+  if (!requireEditor()) return;
   const plan = data.plans.find(next => next.id === id);
   data.plans = data.plans.filter(next => next.id !== id);
   if (plan && data.selections?.[plan.category] === id) delete data.selections[plan.category];
   save();
 }
 function duplicatePlan(id){
+  if (!requireEditor()) return;
   const plan = data.plans.find(next => next.id === id);
   if (!plan) return;
   data.plans.push({
@@ -1547,6 +1702,7 @@ function duplicatePlan(id){
   save();
 }
 function addRow(planId){
+  if (!requireEditor()) return;
   const plan = data.plans.find(next => next.id === planId);
   if (!plan) return;
   const firstItem = data.items.find(item => item.category === plan.category) || data.items[0];
@@ -1554,6 +1710,7 @@ function addRow(planId){
   save();
 }
 function updateRow(planId,rowId,key,val){
+  if (!requireEditor()) return;
   const plan = data.plans.find(next => next.id === planId);
   const row = plan?.rows.find(next => next.id === rowId);
   if (!row) return;
@@ -1561,6 +1718,7 @@ function updateRow(planId,rowId,key,val){
   save();
 }
 function removeRow(planId,rowId){
+  if (!requireEditor()) return;
   const plan = data.plans.find(next => next.id === planId);
   if (!plan) return;
   plan.rows = plan.rows.filter(row => row.id !== rowId);
@@ -1577,6 +1735,7 @@ function exportJson(){
   URL.revokeObjectURL(url);
 }
 function importJson(e){
+  if (!requireEditor('登录编辑后可以导入数据。')) return;
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
@@ -1604,10 +1763,13 @@ function loadGistConfig(){
   }catch{}
 }
 function getGistConfig(){
+  const gistId = document.getElementById('gistId');
+  const gistFilename = document.getElementById('gistFilename');
+  const gistToken = document.getElementById('gistToken');
   return {
-    gistId:document.getElementById('gistId').value.trim(),
-    filename:document.getElementById('gistFilename').value.trim() || 'renovation-budget.json',
-    token:document.getElementById('gistToken').value.trim()
+    gistId:gistId?.value.trim() || '',
+    filename:gistFilename?.value.trim() || 'renovation-budget.json',
+    token:gistToken?.value.trim() || ''
   };
 }
 function saveGistConfig(){
@@ -1692,9 +1854,20 @@ async function pushGist(){
 }
 
 async function initApp(){
-  loadGistConfig();
+  if (editorCredentials) {
+    isEditor = await verifyStoredEditor();
+    if (!isEditor) editorCredentials = null;
+  }
   render();
   if (await loadServerData()) render();
+}
+async function verifyStoredEditor(){
+  try{
+    const res = await fetch('/api/auth/check', { headers:authHeader() });
+    return res.ok;
+  }catch{
+    return false;
+  }
 }
 initApp();
 </script>
