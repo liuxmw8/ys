@@ -278,6 +278,32 @@
     .tabs button.active, .category-tabs button.active { background:var(--main); color:white; border-color:var(--main); }
     .tabs button, .category-tabs button { border-color:transparent; box-shadow:none; }
     .category-tabs button { background:#fff; }
+    .category-tab-group {
+      display:flex;
+      align-items:center;
+      flex:0 0 auto;
+    }
+    .sortable-category,
+    .sortable-plan {
+      touch-action:manipulation;
+    }
+    .editor .sortable-category,
+    .editor .sortable-plan {
+      cursor:grab;
+    }
+    .dragging-sort,
+    .dragging-sort * {
+      user-select:none;
+    }
+    .dragging-sort .sortable-category.dragging,
+    .dragging-sort .sortable-plan.dragging {
+      opacity:.55;
+    }
+    .sortable-category.drop-target button,
+    .sortable-plan.drop-target {
+      outline:2px solid var(--main);
+      outline-offset:3px;
+    }
     .budget-layout { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(320px,.75fr); gap:14px; align-items:start; }
     .budget-head {
       display:flex;
@@ -810,8 +836,8 @@ function normalizeData(next){
     });
   });
 
-  const categorySet = new Set(DEFAULT_CATEGORIES);
-  normalized.categories.forEach(category => categorySet.add(category));
+  const categorySet = new Set(normalized.categories.filter(Boolean));
+  DEFAULT_CATEGORIES.forEach(category => categorySet.add(category));
   normalized.items.forEach(item => categorySet.add(item.category));
   normalized.plans.forEach(plan => categorySet.add(plan.category));
   normalized.categories = [...categorySet].filter(Boolean);
@@ -893,6 +919,7 @@ function showEditStatus(message, tone = ''){
   status.classList.toggle('editing', isEditor || tone === 'ok');
 }
 function renderAuthState(){
+  document.body.classList.toggle('editor', isEditor);
   const status = document.getElementById('editModeStatus');
   const button = document.getElementById('editLoginButton');
   if (status) {
@@ -1110,8 +1137,12 @@ function handleBudgetCardKey(event){
   }
 }
 function renderCategoryTabs(){
+  const list = categories();
   return `<nav class="category-tabs">
-    ${categories().map(category => `<button class="${category === activeCategory ? 'active' : ''}" onclick="setActiveCategory(${jsArg(category)})">${esc(category)}</button>`).join('')}
+    ${list.map(category => `
+      <span class="category-tab-group${isEditor ? ' sortable-category' : ''}" ${isEditor ? `data-sort-type="category" data-sort-id="${esc(category)}" onpointerdown="beginSortPointer(event, 'category', ${jsArg(category)})"` : ''}>
+        <button class="${category === activeCategory ? 'active' : ''}" onclick="setActiveCategory(${jsArg(category)})">${esc(category)}</button>
+      </span>`).join('')}
     ${editorOnly('<button onclick="addCategory()">新增分类</button>')}
   </nav>`;
 }
@@ -1319,7 +1350,7 @@ function renderPlans(){
 function renderPlanCard(plan, min){
   const total = planTotal(plan);
   const isSelected = data.selections?.[plan.category] === plan.id;
-  return `<section class="card">
+  return `<section class="card${isEditor ? ' sortable-plan' : ''}" ${isEditor ? `data-sort-type="plan" data-sort-id="${esc(plan.id)}" onpointerdown="beginSortPointer(event, 'plan', ${jsArg(plan.id)})"` : ''}>
     <div class="plan-head">
       <input class="plan-title" value="${esc(plan.name)}" ${editorDisabled()} onchange="updatePlan(${jsArg(plan.id)}, 'name', this.value)">
       <select ${editorDisabled()} onchange="updatePlan(${jsArg(plan.id)}, 'category', this.value)">
@@ -1406,8 +1437,119 @@ function switchTab(tab){
     document.getElementById('tab' + name.charAt(0).toUpperCase() + name.slice(1)).classList.toggle('active', tab === name);
   });
 }
-function setActiveCategory(category){ activeCategory = category; render(); switchTab(currentTab); }
+function setActiveCategory(category){
+  if (Date.now() < sortSuppressClickUntil) return;
+  activeCategory = category;
+  render();
+  switchTab(currentTab);
+}
 function focusCategory(category){ activeCategory = category; render(); switchTab('plans'); }
+let sortPointerState = null;
+let sortSuppressClickUntil = 0;
+document.addEventListener('click', event => {
+  if (Date.now() >= sortSuppressClickUntil) return;
+  if (!event.target.closest('[data-sort-type]')) return;
+  event.preventDefault();
+  event.stopPropagation();
+}, true);
+function beginSortPointer(event, type, id){
+  if (!isEditor || !event.isPrimary) return;
+  if (event.button !== undefined && event.button !== 0) return;
+  if (type === 'plan' && event.target.closest('input, select, textarea, button, a, label')) return;
+  sortPointerState = {
+    type,
+    id,
+    source: event.currentTarget,
+    startX: event.clientX,
+    startY: event.clientY,
+    dragging: false,
+    target: null
+  };
+  document.addEventListener('pointermove', handleSortPointerMove);
+  document.addEventListener('pointerup', finishSortPointer);
+  document.addEventListener('pointercancel', cancelSortPointer);
+}
+function handleSortPointerMove(event){
+  const state = sortPointerState;
+  if (!state) return;
+  const distance = Math.hypot(event.clientX - state.startX, event.clientY - state.startY);
+  if (!state.dragging && distance < 8) return;
+  if (!state.dragging) {
+    state.dragging = true;
+    document.body.classList.add('dragging-sort');
+    state.source.classList.add('dragging');
+  }
+  event.preventDefault();
+  const target = sortTargetAt(event.clientX, event.clientY, state.type);
+  setSortDropTarget(target && target.dataset.sortId !== state.id ? target : null);
+}
+function sortTargetAt(x, y, type){
+  const element = document.elementFromPoint(x, y);
+  return element ? element.closest(`[data-sort-type="${type}"]`) : null;
+}
+function setSortDropTarget(target){
+  const state = sortPointerState;
+  if (!state || state.target === target) return;
+  if (state.target) state.target.classList.remove('drop-target');
+  state.target = target;
+  if (state.target) state.target.classList.add('drop-target');
+}
+function finishSortPointer(event){
+  const state = sortPointerState;
+  if (!state) return;
+  if (state.dragging) {
+    event.preventDefault();
+    sortSuppressClickUntil = Date.now() + 350;
+    const targetId = state.target?.dataset.sortId;
+    if (targetId && targetId !== state.id) {
+      if (state.type === 'category') reorderCategory(state.id, targetId);
+      if (state.type === 'plan') reorderPlan(state.id, targetId);
+    }
+  }
+  cleanupSortPointer();
+}
+function cancelSortPointer(){
+  cleanupSortPointer();
+}
+function cleanupSortPointer(){
+  if (sortPointerState?.target) sortPointerState.target.classList.remove('drop-target');
+  if (sortPointerState?.source) sortPointerState.source.classList.remove('dragging');
+  document.body.classList.remove('dragging-sort');
+  document.removeEventListener('pointermove', handleSortPointerMove);
+  document.removeEventListener('pointerup', finishSortPointer);
+  document.removeEventListener('pointercancel', cancelSortPointer);
+  sortPointerState = null;
+}
+function reorderCategory(category, targetCategory){
+  if (!requireEditor()) return;
+  const nextCategories = moveWithin(data.categories, category, targetCategory);
+  if (!nextCategories) return;
+  data.categories = nextCategories;
+  activeCategory = category;
+  save();
+}
+function reorderPlan(id, targetId){
+  if (!requireEditor()) return;
+  const byId = new Map(data.plans.map(plan => [plan.id, plan]));
+  const plan = byId.get(id);
+  const target = byId.get(targetId);
+  if (!plan || !target || plan.category !== target.category) return;
+  const orderedIds = data.plans.filter(next => next.category === plan.category).map(next => next.id);
+  const nextIds = moveWithin(orderedIds, id, targetId);
+  if (!nextIds) return;
+  let cursor = 0;
+  data.plans = data.plans.map(next => next.category === plan.category ? byId.get(nextIds[cursor++]) : next);
+  save();
+}
+function moveWithin(list, id, targetId){
+  const next = list.slice();
+  const from = next.indexOf(id);
+  const to = next.indexOf(targetId);
+  if (from < 0 || to < 0 || from === to) return null;
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
+}
 function addCategory(){
   if (!requireEditor('登录编辑后可以新增分类。')) return;
   const name = prompt('请输入新分类名称');
