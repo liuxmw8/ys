@@ -279,6 +279,42 @@
     .tabs button, .category-tabs button { border-color:transparent; box-shadow:none; }
     .category-tabs button { background:#fff; }
     .budget-layout { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(320px,.75fr); gap:14px; align-items:start; }
+    .budget-head {
+      display:flex;
+      justify-content:space-between;
+      gap:14px;
+      align-items:flex-start;
+      margin-bottom:14px;
+      padding-bottom:14px;
+      border-bottom:1px solid var(--line);
+    }
+    .budget-hero {
+      margin-top:4px;
+      color:var(--main);
+      font-size:34px;
+      font-weight:900;
+      line-height:1.1;
+    }
+    .budget-hints {
+      display:grid;
+      grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);
+      gap:12px;
+      margin-top:14px;
+      padding:12px;
+      border:1px solid var(--line);
+      border-radius:8px;
+      background:#f8fafc;
+    }
+    .budget-hints strong {
+      display:block;
+      margin-top:5px;
+      font-size:15px;
+    }
+    .budget-hints .value {
+      margin-top:5px;
+      font-size:14px;
+      line-height:1.45;
+    }
     .budget-total {
       border-top:1px solid var(--line);
       margin-top:12px;
@@ -388,6 +424,12 @@
         font-size:20px;
       }
       .budget-total { font-size:22px; }
+      .budget-head {
+        align-items:stretch;
+        flex-direction:column;
+      }
+      .budget-hero { font-size:32px; }
+      .budget-hints { grid-template-columns:1fr; }
       .detail-panel { margin:0 0 14px; }
       .detail-panel-head { align-items:flex-start; flex-direction:column; }
       .item-line { grid-template-columns:1fr; gap:4px; }
@@ -502,17 +544,6 @@
         <button id="editLoginButton" class="primary" onclick="openAuthModal()">登录编辑</button>
       </div>
     </header>
-
-    <section class="grid">
-      <div class="card stat clickable" id="wholeBudgetCard" role="button" tabindex="0" onclick="toggleBudgetDetails()" onkeydown="handleBudgetCardKey(event)">
-        <div class="label">整屋已选预算</div>
-        <div id="wholeBudget" class="value">￥0</div>
-        <div id="wholeBudgetHint" class="small">点击查看设备明细</div>
-      </div>
-      <div class="card stat"><div class="label">未选分类</div><div id="missingCategories" class="value compact">-</div></div>
-      <div class="card stat"><div class="label">当前分类预算差异</div><div id="categoryBudgetInsight" class="value compact">-</div></div>
-    </section>
-    <section id="selectedItemsPanel" class="card detail-panel hidden"></section>
 
     <nav class="tabs">
       <button id="tabBudget" class="active" onclick="switchTab('budget')">整屋预算</button>
@@ -958,7 +989,6 @@ function selectedItemLines(){
 function render(){
   renderAuthState();
   renderAppTitle();
-  renderStats();
   renderBudget();
   renderPlans();
   renderItems();
@@ -996,19 +1026,24 @@ function handleTitleKey(event){
     event.currentTarget.blur();
   }
 }
-function renderStats(){
-  const missing = selectedSummaries().filter(row => !row.plan).map(row => row.category);
+function budgetInsightHtml(rows){
+  const missing = rows.filter(row => !row.plan).map(row => row.category);
   const sorted = categoryTotals(activeCategory);
   const selected = selectedPlan(activeCategory);
   const baseline = selected ? planTotal(selected) : (sorted[0]?.total || 0);
   const lowest = sorted[0];
   const highest = sorted[sorted.length - 1];
-  document.getElementById('wholeBudget').textContent = money(wholeTotal());
-  document.getElementById('wholeBudgetCard').setAttribute('aria-expanded', String(budgetDetailsOpen));
-  document.getElementById('wholeBudgetHint').textContent = budgetDetailsOpen ? '点击收起设备明细' : '点击查看设备明细';
-  document.getElementById('missingCategories').textContent = missing.length ? missing.join('、') : '已全部选择';
-  document.getElementById('categoryBudgetInsight').innerHTML = renderCategoryBudgetInsight(lowest, highest, baseline);
-  renderSelectedItemsPanel();
+  return `
+    <div class="budget-hints">
+      <div>
+        <div class="small">未选分类</div>
+        <strong>${missing.length ? esc(missing.join('、')) : '已全部选择'}</strong>
+      </div>
+      <div>
+        <div class="small">当前分类预算差异</div>
+        <div class="value compact">${renderCategoryBudgetInsight(lowest, highest, baseline)}</div>
+      </div>
+    </div>`;
 }
 function renderCategoryBudgetInsight(lowest, highest, baseline){
   if (!lowest) return '-';
@@ -1022,33 +1057,31 @@ function renderCategoryBudgetInsight(lowest, highest, baseline){
   return rows.join('');
 }
 function renderSelectedItemsPanel(){
-  const panel = document.getElementById('selectedItemsPanel');
-  panel.classList.toggle('hidden', !budgetDetailsOpen);
-  if (!budgetDetailsOpen) {
-    panel.innerHTML = '';
-    return;
-  }
+  if (!budgetDetailsOpen) return '';
   const lines = selectedItemLines();
-  panel.innerHTML = `
-    <div class="detail-panel-head">
-      <h2>已选设备明细</h2>
-      <div class="small">${lines.length} 项，按金额从高到低排列</div>
-    </div>
-    ${lines.length ? `<div class="item-lines">${lines.map(line => `
-      <div class="item-line">
-        <div class="item-line-main">
-          ${line.image ? `<img class="detail-thumb" src="${esc(line.image)}" alt="${esc(line.itemName)}">` : ''}
-          <div>
-            <strong>${esc(line.itemName)}</strong>
-            <div class="item-meta">${esc(line.category)} · ${esc(line.planName)}${line.qty !== 1 ? ` · 数量 ${line.qty}` : ''}</div>
+  return `
+    <section class="detail-panel">
+      <div class="detail-panel-head">
+        <h2>已选设备明细</h2>
+        <div class="small">${lines.length} 项，按金额从高到低排列</div>
+      </div>
+      ${lines.length ? `<div class="item-lines">${lines.map(line => `
+        <div class="item-line">
+          <div class="item-line-main">
+            ${line.image ? `<img class="detail-thumb" src="${esc(line.image)}" alt="${esc(line.itemName)}">` : ''}
+            <div>
+              <strong>${esc(line.itemName)}</strong>
+              <div class="item-meta">${esc(line.category)} · ${esc(line.planName)}${line.qty !== 1 ? ` · 数量 ${line.qty}` : ''}</div>
+            </div>
           </div>
+          <strong>${money(line.total)}</strong>
         </div>
-        <strong>${money(line.total)}</strong>
-      </div>`).join('')}</div>` : '<div class="empty">还没有已选设备。</div>'}`;
+      `).join('')}</div>` : '<div class="empty">还没有已选设备。</div>'}
+    </section>`;
 }
 function toggleBudgetDetails(){
   budgetDetailsOpen = !budgetDetailsOpen;
-  renderStats();
+  renderBudget();
 }
 function handleBudgetCardKey(event){
   if (event.key === 'Enter' || event.key === ' ') {
@@ -1066,50 +1099,44 @@ function renderBudget(){
   const rows = selectedSummaries();
   const total = wholeTotal();
   document.getElementById('budgetView').innerHTML = `
-    <section class="budget-layout">
-      <div class="card">
-        <div class="between" style="margin-bottom:10px">
-          <h2>整屋方案组合</h2>
-          <div class="row">
-            <button onclick="generateBudgetReport()">生成报告图片</button>
-            <button class="primary" onclick="${isEditor ? "switchTab('plans')" : "openAuthModal('登录编辑后可以修改分类方案。')"}">${isEditor ? '编辑分类方案' : '登录编辑'}</button>
-          </div>
+    <section class="card">
+      <div class="budget-head">
+        <div>
+          <div class="small">整屋预算</div>
+          <div class="budget-hero">${money(total)}</div>
         </div>
-        <div class="table-wrap budget-table-wrap">
-          <table class="budget-table">
-            <thead><tr><th>分类</th><th>选择方案</th><th>小计</th><th></th></tr></thead>
-            <tbody>
-              ${rows.map(row => {
-                const plans = plansByCategory(row.category);
-                return `<tr>
-                  <td data-label="分类"><strong>${esc(row.category)}</strong></td>
-                  <td data-label="选择方案">
-                    <select style="width:100%" ${editorDisabled()} onchange="selectBudgetPlan(${jsArg(row.category)}, this.value)">
-                      <option value="">不选择</option>
-                      ${plans.map(plan => `<option value="${esc(plan.id)}" ${row.plan?.id === plan.id ? 'selected' : ''}>${esc(plan.name)}（${money(planTotal(plan))}）</option>`).join('')}
-                    </select>
-                  </td>
-                  <td data-label="小计"><strong>${money(row.total)}</strong></td>
-                  <td><button onclick="focusCategory(${jsArg(row.category)})">查看</button></td>
-                </tr>`;
-              }).join('')}
-            </tbody>
-          </table>
+        <div class="row">
+          <button class="primary" onclick="${isEditor ? 'openItemModal()' : `openAuthModal(${jsArg('登录编辑后可以快速添加设备项目。')})`}">快速添加设备项目</button>
+          <button onclick="generateBudgetReport()">生成报告图片</button>
+          <button onclick="toggleBudgetDetails()">${budgetDetailsOpen ? '收起设备明细' : '展开设备明细'}</button>
+          <button onclick="${isEditor ? "switchTab('plans')" : `openAuthModal(${jsArg('登录编辑后可以修改分类方案。')})`}">${isEditor ? '编辑分类方案' : '登录编辑'}</button>
         </div>
-        <div class="budget-total"><span>合计</span><span>${money(wholeTotal())}</span></div>
-        ${editHint()}
       </div>
-      <aside class="card">
-        <h2>当前组合清单</h2>
-        <div class="summary-list">
-          ${rows.filter(row => row.plan).length ? rows.filter(row => row.plan).map(row => `
-            <div class="summary-line">
-              <span>${esc(row.category)}</span>
-              <span>${esc(row.plan.name)}</span>
-              <div class="summary-money"><strong>${money(row.total)}</strong><span>占比 ${percent(row.total, total)}</span></div>
-            </div>`).join('') : '<div class="empty">还没有选择任何分类方案。</div>'}
-        </div>
-      </aside>
+      <div class="table-wrap budget-table-wrap">
+        <table class="budget-table">
+          <thead><tr><th>分类</th><th>选择方案</th><th>小计</th><th>占比</th><th></th></tr></thead>
+          <tbody>
+            ${rows.map(row => {
+              const plans = plansByCategory(row.category);
+              return `<tr>
+                <td data-label="分类"><strong>${esc(row.category)}</strong></td>
+                <td data-label="选择方案">
+                  <select style="width:100%" ${editorDisabled()} onchange="selectBudgetPlan(${jsArg(row.category)}, this.value)">
+                    <option value="">不选择</option>
+                    ${plans.map(plan => `<option value="${esc(plan.id)}" ${row.plan?.id === plan.id ? 'selected' : ''}>${esc(plan.name)}（${money(planTotal(plan))}）</option>`).join('')}
+                  </select>
+                </td>
+                <td data-label="小计"><strong>${money(row.total)}</strong></td>
+                <td data-label="占比"><span class="small">${percent(row.total, total)}</span></td>
+                <td><button onclick="focusCategory(${jsArg(row.category)})">查看</button></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+      ${renderSelectedItemsPanel()}
+      ${budgetInsightHtml(rows)}
+      ${editHint()}
     </section>`;
 }
 function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 2){
