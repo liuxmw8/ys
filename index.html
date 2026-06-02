@@ -352,6 +352,89 @@
       font-weight:800;
       color:var(--main);
     }
+    .budget-plan-list {
+      display:grid;
+      gap:8px;
+    }
+    .budget-plan-row {
+      border:1px solid var(--line);
+      border-radius:8px;
+      background:#fff;
+      overflow:hidden;
+      cursor:pointer;
+      transition:border-color .12s ease, box-shadow .12s ease;
+    }
+    .budget-plan-row:hover,
+    .budget-plan-row.open {
+      border-color:rgba(15,118,110,.32);
+      box-shadow:0 6px 18px rgba(15,23,42,.06);
+    }
+    .budget-plan-row:focus-visible {
+      outline:3px solid rgba(15,118,110,.18);
+      outline-offset:2px;
+    }
+    .budget-plan-main {
+      display:grid;
+      grid-template-columns:96px minmax(0,1fr) auto;
+      gap:10px;
+      align-items:center;
+      min-height:52px;
+      padding:9px 12px;
+    }
+    .budget-category {
+      min-width:0;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .budget-select-wrap {
+      min-width:0;
+    }
+    .budget-select-wrap select {
+      width:100%;
+      min-height:36px;
+      padding:7px 9px;
+    }
+    .budget-row-money {
+      color:var(--main);
+      font-size:18px;
+      white-space:nowrap;
+      text-align:right;
+    }
+    .budget-image-strip {
+      display:flex;
+      gap:6px;
+      overflow:auto;
+      padding:0 12px 10px 108px;
+    }
+    .budget-thumb {
+      width:44px;
+      height:44px;
+      border:1px solid var(--line);
+      border-radius:8px;
+      object-fit:cover;
+      background:#f8fafc;
+      flex:0 0 auto;
+    }
+    .budget-image-more {
+      min-width:44px;
+      height:44px;
+      border:1px solid var(--line);
+      border-radius:8px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:var(--muted);
+      font-size:12px;
+      background:#f8fafc;
+      flex:0 0 auto;
+    }
+    .budget-row-detail {
+      border-top:1px solid var(--line);
+      padding:4px 12px 10px;
+      background:#fbfdff;
+      cursor:default;
+    }
     .summary-list { display:grid; gap:10px; }
     .summary-line {
       display:grid;
@@ -456,6 +539,35 @@
       }
       .budget-hero { font-size:32px; }
       .budget-hints { grid-template-columns:1fr; }
+      .budget-plan-list { gap:7px; }
+      .budget-plan-main {
+        grid-template-columns:64px minmax(0,1fr) 84px;
+        gap:6px;
+        min-height:46px;
+        padding:7px 8px;
+      }
+      .budget-category {
+        font-size:14px;
+      }
+      .budget-select-wrap select {
+        min-height:34px;
+        padding:6px 7px;
+        font-size:14px;
+      }
+      .budget-row-money {
+        font-size:15px;
+      }
+      .budget-image-strip {
+        padding:0 8px 8px 72px;
+      }
+      .budget-thumb,
+      .budget-image-more {
+        width:38px;
+        height:38px;
+      }
+      .budget-row-detail {
+        padding:2px 8px 8px;
+      }
       .detail-panel { margin:0 0 14px; }
       .detail-panel-head { align-items:flex-start; flex-direction:column; }
       .item-line { grid-template-columns:1fr; gap:4px; }
@@ -724,6 +836,7 @@ let reportImageDataUrl = '';
 let useServerApi = false;
 let serverSaveTimer = null;
 let isEditor = false;
+let expandedBudgetCategory = '';
 let editorCredentials = loadEditorCredentials();
 let data = normalizeData(loadLocal() || defaultData());
 
@@ -1032,6 +1145,27 @@ function selectedItemLines(){
     .filter(line => line.total > 0)
     .sort((a,b) => b.total - a.total);
 }
+function planItemLines(summary){
+  if (!summary.plan) return [];
+  const map = itemMap();
+  return (summary.plan.rows || [])
+    .map(row => {
+      const item = map[row.itemId];
+      const qty = Number(row.qty || 0);
+      const unitPrice = Number(item?.unitPrice || 0);
+      return {
+        category: summary.category,
+        planName: summary.plan.name,
+        itemName: item?.name || '未命名设备',
+        image: item?.image || '',
+        qty,
+        unitPrice,
+        total: unitPrice * qty
+      };
+    })
+    .filter(line => line.total > 0)
+    .sort((a,b) => b.total - a.total);
+}
 
 function render(){
   renderAuthState();
@@ -1159,36 +1293,63 @@ function renderBudget(){
         <div class="row">
           <button class="primary" onclick="${isEditor ? 'openItemModal()' : `openAuthModal(${jsArg('登录编辑后可以快速添加设备项目。')})`}">快速添加设备项目</button>
           <button onclick="generateBudgetReport()">生成报告图片</button>
-          <button onclick="toggleBudgetDetails()">${budgetDetailsOpen ? '收起设备明细' : '展开设备明细'}</button>
           <button onclick="${isEditor ? "switchTab('plans')" : `openAuthModal(${jsArg('登录编辑后可以修改分类方案。')})`}">${isEditor ? '编辑分类方案' : '登录编辑'}</button>
         </div>
       </div>
-      <div class="table-wrap budget-table-wrap">
-        <table class="budget-table">
-          <thead><tr><th>分类</th><th>选择方案</th><th>小计</th><th>占比</th><th></th></tr></thead>
-          <tbody>
-            ${rows.map(row => {
-              const plans = plansByCategory(row.category);
-              return `<tr>
-                <td data-label="分类"><strong>${esc(row.category)}</strong></td>
-                <td data-label="选择方案">
-                  <select style="width:100%" ${editorDisabled()} onchange="selectBudgetPlan(${jsArg(row.category)}, this.value)">
-                    <option value="">不选择</option>
-                    ${plans.map(plan => `<option value="${esc(plan.id)}" ${row.plan?.id === plan.id ? 'selected' : ''}>${esc(plan.name)}（${money(planTotal(plan))}）</option>`).join('')}
-                  </select>
-                </td>
-                <td data-label="小计"><strong>${money(row.total)}</strong></td>
-                <td data-label="占比"><span class="small">${percent(row.total, total)}</span></td>
-                <td><button onclick="focusCategory(${jsArg(row.category)})">查看</button></td>
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>
+      <div class="budget-plan-list">
+        ${rows.map(row => renderBudgetPlanRow(row)).join('')}
       </div>
-      ${renderSelectedItemsPanel()}
-      ${budgetInsightHtml(rows)}
       ${editHint()}
     </section>`;
+}
+function renderBudgetPlanRow(row){
+  const plans = plansByCategory(row.category);
+  const lines = planItemLines(row);
+  const images = lines.filter(line => line.image);
+  const expanded = expandedBudgetCategory === row.category;
+  return `<section class="budget-plan-row${expanded ? ' open' : ''}" tabindex="0" onclick="toggleBudgetCategory(${jsArg(row.category)})" onkeydown="handleBudgetRowKey(event, ${jsArg(row.category)})">
+    <div class="budget-plan-main">
+      <strong class="budget-category">${esc(row.category)}</strong>
+      <div class="budget-select-wrap" ${isEditor ? 'onclick="event.stopPropagation()"' : ''}>
+        <select ${editorDisabled()} onchange="selectBudgetPlan(${jsArg(row.category)}, this.value)">
+          <option value="">不选择</option>
+          ${plans.map(plan => `<option value="${esc(plan.id)}" ${row.plan?.id === plan.id ? 'selected' : ''}>${esc(plan.name)}</option>`).join('')}
+        </select>
+      </div>
+      <strong class="budget-row-money">${money(row.total)}</strong>
+    </div>
+    ${images.length ? `<div class="budget-image-strip">
+      ${images.slice(0, 10).map(line => `<img class="budget-thumb" src="${esc(line.image)}" alt="${esc(line.itemName)}">`).join('')}
+      ${images.length > 10 ? `<span class="budget-image-more">+${images.length - 10}</span>` : ''}
+    </div>` : ''}
+    ${expanded ? renderBudgetPlanDetail(lines) : ''}
+  </section>`;
+}
+function renderBudgetPlanDetail(lines){
+  return `<div class="budget-row-detail" onclick="event.stopPropagation()">
+    ${lines.length ? `<div class="item-lines">${lines.map(line => `
+      <div class="item-line">
+        <div class="item-line-main">
+          ${line.image ? `<img class="detail-thumb" src="${esc(line.image)}" alt="${esc(line.itemName)}">` : ''}
+          <div>
+            <strong>${esc(line.itemName)}</strong>
+            <div class="item-meta">${line.qty !== 1 ? `数量 ${line.qty}` : '单项设备'}</div>
+          </div>
+        </div>
+        <strong>${money(line.total)}</strong>
+      </div>
+    `).join('')}</div>` : '<div class="empty">这个方案还没有已计价设备。</div>'}
+  </div>`;
+}
+function toggleBudgetCategory(category){
+  expandedBudgetCategory = expandedBudgetCategory === category ? '' : category;
+  renderBudget();
+}
+function handleBudgetRowKey(event, category){
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    toggleBudgetCategory(category);
+  }
 }
 function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 2){
   const chars = String(text || '').split('');
