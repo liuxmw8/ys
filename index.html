@@ -574,7 +574,11 @@
           <label for="editPassword">密码</label>
           <input id="editPassword" type="password" autocomplete="current-password" placeholder="请输入密码" onkeydown="handleAuthKey(event)">
         </div>
-        <div id="authModalStatus" class="status">登录后会在当前浏览器会话中保持编辑权限。</div>
+        <label class="row small" style="align-items:center">
+          <input id="rememberEditorLogin" type="checkbox" style="width:auto;min-height:0">
+          <span>记住登录，下次打开自动进入编辑模式</span>
+        </label>
+        <div id="authModalStatus" class="status">默认只在当前浏览器会话中保持编辑权限。</div>
         <div class="row" style="justify-content:flex-end">
           <button onclick="closeAuthModal()">取消</button>
           <button class="primary" onclick="loginEditor()">登录</button>
@@ -678,6 +682,7 @@
 const STORAGE_KEY = 'renovation_budget_compare_gist_v2';
 const LEGACY_STORAGE_KEY = 'renovation_budget_compare_gist_v1';
 const CONFIG_KEY = 'renovation_budget_gist_config_v1';
+const EDITOR_AUTH_KEY = 'renovation_budget_editor_auth_v1';
 const DEFAULT_APP_TITLE = '国宾壹号装修预算';
 const DEFAULT_CATEGORIES = ['空调','净水','厨电','卫浴','智能家居','家具'];
 
@@ -749,7 +754,16 @@ function editorDisabled(){ return isEditor ? '' : 'disabled'; }
 function editorOnly(html){ return isEditor ? html : ''; }
 function editHint(){ return isEditor ? '' : '<div class="small warn" style="margin-top:10px">当前为公开查看模式。登录编辑后可以修改和保存。</div>'; }
 function loadEditorCredentials(){
-  try { return JSON.parse(sessionStorage.getItem('renovation_budget_editor_auth_v1')) || null; } catch { return null; }
+  try {
+    return JSON.parse(localStorage.getItem(EDITOR_AUTH_KEY))
+      || JSON.parse(sessionStorage.getItem(EDITOR_AUTH_KEY))
+      || null;
+  } catch {
+    return null;
+  }
+}
+function hasRememberedEditorLogin(){
+  return Boolean(localStorage.getItem(EDITOR_AUTH_KEY));
 }
 function authHeader(){
   if (!editorCredentials?.username || !editorCredentials?.password) return {};
@@ -893,10 +907,11 @@ function renderAuthState(){
 function openAuthModal(message = ''){
   const backdrop = document.getElementById('authModalBackdrop');
   if (!backdrop) return;
-  document.getElementById('authModalStatus').textContent = message || '登录后会在当前浏览器会话中保持编辑权限。';
+  document.getElementById('authModalStatus').textContent = message || '默认只在当前浏览器会话中保持编辑权限。';
   document.getElementById('authModalStatus').className = message ? 'status warn' : 'status';
   document.getElementById('editUsername').value = editorCredentials?.username || '';
   document.getElementById('editPassword').value = editorCredentials?.password || '';
+  document.getElementById('rememberEditorLogin').checked = hasRememberedEditorLogin();
   backdrop.classList.remove('hidden');
   setTimeout(() => document.getElementById(editorCredentials?.username ? 'editPassword' : 'editUsername').focus(), 0);
 }
@@ -914,6 +929,7 @@ function handleAuthKey(event){
 async function loginEditor(){
   const username = document.getElementById('editUsername').value.trim();
   const password = document.getElementById('editPassword').value;
+  const remember = document.getElementById('rememberEditorLogin').checked;
   const status = document.getElementById('authModalStatus');
   if (!username || !password) {
     status.textContent = '请填写用户名和密码。';
@@ -930,7 +946,10 @@ async function loginEditor(){
     const json = await res.json().catch(()=>({}));
     if (!res.ok) throw new Error(json.error || '账号或密码不正确');
     editorCredentials = nextCredentials;
-    sessionStorage.setItem('renovation_budget_editor_auth_v1', JSON.stringify(editorCredentials));
+    const serialized = JSON.stringify(editorCredentials);
+    sessionStorage.setItem(EDITOR_AUTH_KEY, serialized);
+    if (remember) localStorage.setItem(EDITOR_AUTH_KEY, serialized);
+    else localStorage.removeItem(EDITOR_AUTH_KEY);
     isEditor = true;
     closeAuthModal();
     render();
@@ -943,7 +962,8 @@ async function loginEditor(){
 function logoutEditor(){
   isEditor = false;
   editorCredentials = null;
-  sessionStorage.removeItem('renovation_budget_editor_auth_v1');
+  sessionStorage.removeItem(EDITOR_AUTH_KEY);
+  localStorage.removeItem(EDITOR_AUTH_KEY);
   render();
   showEditStatus('已退出编辑，当前公开查看。');
 }
@@ -1883,7 +1903,11 @@ async function pushGist(){
 async function initApp(){
   if (editorCredentials) {
     isEditor = await verifyStoredEditor();
-    if (!isEditor) editorCredentials = null;
+    if (!isEditor) {
+      editorCredentials = null;
+      sessionStorage.removeItem(EDITOR_AUTH_KEY);
+      localStorage.removeItem(EDITOR_AUTH_KEY);
+    }
   }
   render();
   if (await loadServerData()) render();
