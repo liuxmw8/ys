@@ -1,0 +1,13 @@
+services:
+  renovation-budget:
+    build: .
+    container_name: renovation-budget
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      APP_PASSWORD: "${APP_PASSWORD:-}"
+      DATA_DIR: /app/runtime
+      PORT: 3000
+    volumes:
+      - ./runtime:/app/runtime

@@ -566,6 +566,8 @@ let itemModalImage = '';
 let editingImageItemId = null;
 let editingItemImage = '';
 let reportImageDataUrl = '';
+let useServerApi = false;
+let serverSaveTimer = null;
 let data = normalizeData(loadLocal() || defaultData());
 
 function defaultData(){
@@ -618,6 +620,7 @@ function jsArg(value){ return esc(JSON.stringify(value)); }
 function loadLocal(){
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY)); } catch { return null; }
 }
+function canUseServerApi(){ return location.protocol !== 'file:'; }
 function normalizeData(next){
   const normalized = next && typeof next === 'object' ? next : defaultData();
   normalized.version = 2;
@@ -672,7 +675,47 @@ function save(options = {}){
   data = normalizeData(data);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   render();
-  if (options.sync !== false) scheduleAutoPush();
+  if (options.sync === false) return;
+  if (useServerApi) scheduleServerSave();
+  else scheduleAutoPush();
+}
+async function loadServerData(){
+  if (!canUseServerApi()) return false;
+  try{
+    const res = await fetch('/api/data', { cache:'no-store' });
+    if (!res.ok) return false;
+    const next = await res.json();
+    if (!Array.isArray(next.items) || !Array.isArray(next.plans)) return false;
+    data = normalizeData(next);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    useServerApi = true;
+    document.getElementById('syncStatus').innerHTML = '<span class="ok">已连接服务器数据。</span>';
+    return true;
+  }catch{
+    return false;
+  }
+}
+function scheduleServerSave(){
+  clearTimeout(serverSaveTimer);
+  serverSaveTimer = setTimeout(pushServerData, 800);
+  document.getElementById('syncStatus').innerHTML = '<span class="warn">本地已保存，稍后同步到服务器。</span>';
+}
+async function pushServerData(){
+  if (!useServerApi) return;
+  try{
+    const res = await fetch('/api/data', {
+      method:'PUT',
+      headers:{ 'Content-Type':'application/json' },
+      body:JSON.stringify(data)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || ('服务器保存失败：' + res.status));
+    }
+    document.getElementById('syncStatus').innerHTML = '<span class="ok">已保存到服务器。</span> ' + new Date().toLocaleString();
+  }catch(err){
+    document.getElementById('syncStatus').textContent = '保存到服务器失败：' + err.message;
+  }
 }
 function itemMap(){ return Object.fromEntries(data.items.map(i => [i.id, i])); }
 function categories(){ return data.categories; }
@@ -1227,15 +1270,24 @@ function resizeImageFile(file){
     reader.readAsDataURL(file);
   });
 }
+async function prepareImageFile(file){
+  if (!useServerApi) return resizeImageFile(file);
+  const form = new FormData();
+  form.append('image', file);
+  const res = await fetch('/api/upload', { method:'POST', body:form });
+  const json = await res.json().catch(()=>({}));
+  if (!res.ok) throw new Error(json.error || '图片上传失败');
+  return json.url;
+}
 async function useImageFile(file){
   if (!file || !file.type?.startsWith('image/')) return;
   const status = document.getElementById('itemImageStatus');
-  status.textContent = '正在压缩图片...';
+  status.textContent = useServerApi ? '正在上传图片...' : '正在压缩图片...';
   status.className = 'small';
   try{
-    const dataUrl = await resizeImageFile(file);
+    const dataUrl = await prepareImageFile(file);
     document.getElementById('newItemImageUrl').value = '';
-    setModalImage(dataUrl, '图片已粘贴/上传并压缩。');
+    setModalImage(dataUrl, useServerApi ? '图片已上传到服务器。' : '图片已粘贴/上传并压缩。');
   }catch(err){
     status.textContent = err.message || '图片处理失败';
     status.className = 'small warn';
@@ -1291,12 +1343,12 @@ function setEditImageFromUrl(){
 async function useEditImageFile(file){
   if (!file || !file.type?.startsWith('image/')) return;
   const status = document.getElementById('editItemImageStatus');
-  status.textContent = '正在压缩图片...';
+  status.textContent = useServerApi ? '正在上传图片...' : '正在压缩图片...';
   status.className = 'small';
   try{
-    const dataUrl = await resizeImageFile(file);
+    const dataUrl = await prepareImageFile(file);
     document.getElementById('editItemImageUrl').value = '';
-    setEditImage(dataUrl, '图片已粘贴/上传并压缩。');
+    setEditImage(dataUrl, useServerApi ? '图片已上传到服务器。' : '图片已粘贴/上传并压缩。');
   }catch(err){
     status.textContent = err.message || '图片处理失败';
     status.className = 'small warn';
@@ -1322,7 +1374,10 @@ function saveItemImage(){
   item.image = editingItemImage || document.getElementById('editItemImageUrl').value.trim();
   save({sync:false});
   closeItemImageModal();
-  if (hasCloudSyncConfig()) {
+  if (useServerApi) {
+    document.getElementById('syncStatus').innerHTML = '<span class="warn">图片已保存，正在同步到服务器。</span>';
+    pushServerData();
+  } else if (hasCloudSyncConfig()) {
     document.getElementById('syncStatus').innerHTML = '<span class="warn">图片已保存，正在同步到 Gist。</span>';
     autoPushGist();
   }
@@ -1511,6 +1566,7 @@ async function pullGist(){
     const content = file.content ?? await (await fetch(file.raw_url)).text();
     data = normalizeData(JSON.parse(content));
     save({sync:false});
+    if (useServerApi) await pushServerData();
     document.getElementById('syncStatus').innerHTML = '<span class="ok">已从 Gist 读取。</span> 文件：' + esc(file.filename);
   }catch(err){ document.getElementById('syncStatus').textContent = '读取失败：' + err.message; }
 }
@@ -1536,8 +1592,12 @@ async function pushGist(){
   }catch(err){ document.getElementById('syncStatus').textContent = '保存失败：' + err.message; }
 }
 
-loadGistConfig();
-render();
+async function initApp(){
+  loadGistConfig();
+  render();
+  if (await loadServerData()) render();
+}
+initApp();
 </script>
 </body>
 </html>
