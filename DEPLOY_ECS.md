@@ -45,17 +45,19 @@ git clone https://github.com/liuxmw8/ys.git .
 
 或用 `scp` 上传本地文件。
 
-## 4. 设置访问密码
+## 4. 设置访问账号
 
 创建 `.env`：
 
 ```bash
 cat > .env <<'EOF'
-APP_PASSWORD=换成你的强密码
+APP_PORT=80
+APP_USERNAME=gbyh
+APP_PASSWORD=qwe123
 EOF
 ```
 
-设置后访问网页会弹出浏览器自带登录框。用户名随便填，密码填这里的 `APP_PASSWORD`。
+设置后访问网页会弹出浏览器自带登录框。用户名填 `APP_USERNAME`，密码填 `APP_PASSWORD`。
 
 ## 5. 启动
 
@@ -73,10 +75,10 @@ curl http://127.0.0.1:3000/api/health
 访问：
 
 ```text
-http://服务器公网IP:3000
+http://服务器公网IP/
 ```
 
-如果只想通过 Nginx 暴露域名，可以在阿里云安全组里不要开放 `3000`，只开放 `80/443`。
+如果只想通过 Nginx 暴露域名，可以把 `APP_PORT` 改回 `3000`，在阿里云安全组里不要开放 `3000`，只开放 `80/443`。
 
 ## 6. Nginx 反向代理
 
