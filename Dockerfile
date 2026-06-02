@@ -6,6 +6,7 @@ COPY server/package*.json ./server/
 RUN cd server && npm ci --omit=dev
 
 COPY index.html data.json ./
+COPY assets ./assets
 COPY server ./server
 
 ENV NODE_ENV=production

@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+@source "../index.html";
+
+@theme {
+  --color-budget-ink: #0f172a;
+  --color-budget-muted: #64748b;
+  --color-budget-line: #e2e8f0;
+  --color-budget-main: #0f766e;
+  --color-budget-navy: #1e3a5f;
+  --color-budget-soft: #f8fafc;
+  --shadow-panel: 0 10px 30px rgba(15, 23, 42, .06);
+}

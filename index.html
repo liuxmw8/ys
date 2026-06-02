@@ -4,15 +4,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>国宾壹号装修预算</title>
+  <link rel="stylesheet" href="assets/tailwind.css">
   <style>
     :root {
-      --bg:#f4f6f8;
+      --bg:#f8fafc;
       --card:#fff;
-      --text:#17202a;
-      --muted:#667085;
-      --line:#dfe4ea;
-      --main:#1f3a5f;
-      --main-soft:#e8eef6;
+      --text:#0f172a;
+      --muted:#64748b;
+      --line:#e2e8f0;
+      --main:#0f766e;
+      --main-soft:#ccfbf1;
       --accent:#0f766e;
       --danger:#c2410c;
       --ok:#047857;
@@ -22,13 +23,23 @@
     body {
       margin:0;
       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Arial,sans-serif;
-      background:var(--bg);
+      background:
+        linear-gradient(180deg, #eef6f4 0, rgba(248,250,252,0) 280px),
+        var(--bg);
       color:var(--text);
     }
     .wrap { max-width:1220px; margin:0 auto; padding:24px 16px 56px; }
-    header { display:flex; justify-content:space-between; gap:16px; align-items:flex-end; margin-bottom:18px; }
+    header {
+      display:flex;
+      justify-content:space-between;
+      gap:16px;
+      align-items:flex-end;
+      margin-bottom:18px;
+      padding:18px 0 8px;
+    }
     h1 { margin:0; font-size:28px; letter-spacing:0; }
     .app-title-input {
+      display:block;
       width:min(100%, 520px);
       border:0;
       border-radius:0;
@@ -38,6 +49,8 @@
       font-size:28px;
       font-weight:800;
       line-height:1.25;
+      min-height:0;
+      box-shadow:none;
     }
     .app-title-input:focus {
       outline:0;
@@ -55,29 +68,41 @@
       cursor:pointer;
       min-height:38px;
       white-space:nowrap;
+      color:var(--text);
+      box-shadow:0 1px 2px rgba(15,23,42,.04);
+      transition:background .12s ease, border-color .12s ease, color .12s ease, transform .12s ease, box-shadow .12s ease;
     }
     button.primary { background:var(--main); color:white; border-color:var(--main); }
     button.selected { background:var(--accent); color:white; border-color:var(--accent); }
     button.danger { color:var(--danger); }
-    button:hover { filter:brightness(.97); }
+    button:hover { filter:brightness(.98); box-shadow:0 4px 12px rgba(15,23,42,.08); }
+    button:active { transform:translateY(1px); }
     input, select {
       border:1px solid var(--line);
       border-radius:8px;
       padding:9px 10px;
       background:white;
       min-width:0;
+      color:var(--text);
+      box-shadow:0 1px 2px rgba(15,23,42,.03);
+      transition:border-color .12s ease, box-shadow .12s ease;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline:0;
+      border-color:var(--main);
+      box-shadow:0 0 0 3px rgba(15,118,110,.14);
     }
     input[type="number"] { width:110px; }
     table { width:100%; border-collapse:collapse; }
-    th, td { border-bottom:1px solid var(--line); padding:10px 6px; text-align:left; vertical-align:middle; }
-    th { color:var(--muted); font-weight:650; font-size:13px; }
+    th, td { border-bottom:1px solid var(--line); padding:12px 8px; text-align:left; vertical-align:middle; }
+    th { color:var(--muted); font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.04em; background:#f8fafc; }
     code { background:#eef2f7; padding:2px 5px; border-radius:6px; }
     .card {
       background:var(--card);
       border:1px solid var(--line);
       border-radius:8px;
       padding:18px;
-      box-shadow:0 4px 14px rgba(15,23,42,.04);
+      box-shadow:0 10px 30px rgba(15,23,42,.06);
     }
     .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
     .between { display:flex; justify-content:space-between; gap:12px; align-items:center; }
@@ -88,6 +113,18 @@
     .stat.clickable { cursor:pointer; transition:transform .12s ease, box-shadow .12s ease; }
     .stat.clickable:focus-visible { outline:3px solid rgba(31,58,95,.22); outline-offset:2px; }
     .stat.clickable:hover { transform:translateY(-1px); box-shadow:0 6px 18px rgba(15,23,42,.08); }
+    .stat {
+      position:relative;
+      overflow:hidden;
+    }
+    .stat::before {
+      content:"";
+      position:absolute;
+      inset:0 auto 0 0;
+      width:4px;
+      background:var(--main);
+      opacity:.82;
+    }
     .stat-line { display:flex; justify-content:space-between; gap:10px; align-items:baseline; }
     .stat-delta { white-space:nowrap; }
     .stat-delta.save { color:var(--ok); }
@@ -208,19 +245,33 @@
       background:#fff;
       display:block;
     }
-    .tabs, .category-tabs { display:flex; gap:8px; margin:16px 0; overflow:auto; padding-bottom:2px; }
+    .tabs, .category-tabs {
+      display:flex;
+      gap:8px;
+      margin:16px 0;
+      overflow:auto;
+      padding:6px;
+      border:1px solid var(--line);
+      border-radius:8px;
+      background:rgba(255,255,255,.74);
+      backdrop-filter:blur(10px);
+      box-shadow:0 6px 18px rgba(15,23,42,.04);
+    }
+    .tabs { position:sticky; top:0; z-index:10; }
     .tabs button.active, .category-tabs button.active { background:var(--main); color:white; border-color:var(--main); }
+    .tabs button, .category-tabs button { border-color:transparent; box-shadow:none; }
     .category-tabs button { background:#fff; }
     .budget-layout { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(320px,.75fr); gap:14px; align-items:start; }
     .budget-total {
-      border-top:2px solid var(--text);
-      margin-top:8px;
-      padding-top:12px;
+      border-top:1px solid var(--line);
+      margin-top:12px;
+      padding:14px 12px 4px;
       display:flex;
       justify-content:space-between;
       align-items:end;
       font-size:20px;
       font-weight:800;
+      color:var(--main);
     }
     .summary-list { display:grid; gap:10px; }
     .summary-line {
@@ -228,13 +279,16 @@
       grid-template-columns:96px 1fr auto;
       gap:10px;
       align-items:center;
-      padding:10px 0;
+      padding:12px;
       border-bottom:1px solid var(--line);
+      border-radius:8px;
+      background:#f8fafc;
     }
+    .summary-line:last-child { border-bottom:0; }
     .plan-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
     .plan-head { display:grid; grid-template-columns:1fr 138px auto auto; gap:8px; align-items:start; }
     .plan-title { width:100%; font-weight:750; font-size:16px; }
-    .plan-total { display:flex; justify-content:space-between; align-items:end; border-bottom:1px solid var(--line); padding:12px 0; margin-bottom:10px; }
+    .plan-total { display:flex; justify-content:space-between; align-items:end; border-bottom:1px solid var(--line); padding:14px 0 12px; margin-bottom:10px; }
     .plan-total .money { font-size:25px; font-weight:800; }
     .line { display:grid; grid-template-columns:1fr 90px 130px 44px; gap:8px; align-items:center; margin:8px 0; }
     .sync-box { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
@@ -244,7 +298,7 @@
     .status { font-size:13px; color:var(--muted); margin-top:8px; }
     .ok { color:var(--ok); }
     .warn { color:var(--warn); }
-    .empty { padding:22px; border:1px dashed var(--line); border-radius:8px; color:var(--muted); background:#fafbfc; }
+    .empty { padding:22px; border:1px dashed var(--line); border-radius:8px; color:var(--muted); background:#f8fafc; }
     .help { line-height:1.8; }
     .table-wrap { overflow:auto; }
     @media (max-width:980px) {
@@ -402,12 +456,12 @@
     }
   </style>
 </head>
-<body>
-  <div class="wrap">
-    <header>
-      <div>
+<body class="min-h-screen bg-budget-soft text-budget-ink antialiased">
+  <div class="wrap mx-auto max-w-7xl px-3 py-5 pb-14 sm:px-4 lg:px-6">
+    <header class="flex flex-col gap-3 border-b border-budget-line/80 md:flex-row md:items-end md:justify-between">
+      <div class="min-w-0">
         <input id="appTitleInput" class="app-title-input" value="国宾壹号装修预算" maxlength="40" onblur="updateAppTitle(this.value)" onkeydown="handleTitleKey(event)" aria-label="预算标题">
-        <p>按空调、净水、厨电、卫浴、智能家居、家具等用途分类比较方案，并把每类选中的方案汇总成整屋预算。</p>
+        <p class="max-w-3xl text-sm leading-6 text-budget-muted">按空调、净水、厨电、卫浴、智能家居、家具等用途分类比较方案，并把每类选中的方案汇总成整屋预算。</p>
       </div>
     </header>
 
