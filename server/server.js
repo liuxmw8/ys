@@ -60,6 +60,7 @@ app.get('/api/data', async (_req, res, next) => {
 app.put('/api/data', requireEditor, async (req, res, next) => {
   try {
     validateData(req.body);
+    await backupDataFile();
     await writeJsonAtomic(dataFile, req.body);
     res.json({ ok: true, savedAt: new Date().toISOString() });
   } catch (err) {
@@ -136,6 +137,29 @@ function validateData(value) {
     err.status = 400;
     throw err;
   }
+  const criticalText = [
+    value.appTitle,
+    ...(Array.isArray(value.categories) ? value.categories : []),
+    ...value.items.flatMap(item => [item?.name, item?.category]),
+    ...value.plans.flatMap(plan => [plan?.name, plan?.category])
+  ].filter(text => typeof text === 'string');
+  if (criticalText.some(text => /\?{2,}/.test(text))) {
+    const err = new Error('检测到疑似乱码数据，已拒绝保存');
+    err.status = 400;
+    throw err;
+  }
+}
+
+async function backupDataFile() {
+  try {
+    await fs.access(dataFile);
+  } catch {
+    return;
+  }
+  const backupDir = path.join(dataDir, 'backups');
+  await fs.mkdir(backupDir, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  await fs.copyFile(dataFile, path.join(backupDir, `budget-data-${stamp}.json`));
 }
 
 function safeExt(name, mime) {
