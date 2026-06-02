@@ -89,6 +89,9 @@ app.post('/api/fetch-product', requireEditor, async (req, res) => {
     try {
       const fetched = await fetchProductPage(url);
       Object.assign(result, compact({ ...fetched, ...result }));
+      if (jdSkuFromUrl(url) && result.name && !result.price) {
+        result.warning = '京东价格接口可能被拦截，价格请手填。';
+      }
     } catch (err) {
       result.warning = '服务器无法稳定解析该链接，可使用分享文案或手动填写。';
     }
@@ -192,6 +195,14 @@ function firstUrl(text) {
   return (String(text).match(/https?:\/\/[^\s，。"'<>]+/i) || [])[0] || '';
 }
 
+function jdSkuFromUrl(url) {
+  const value = String(url || '');
+  return value.match(/item\.jd\.com\/(\d+)\.html/i)?.[1]
+    || value.match(/item\.m\.jd\.com\/product\/(\d+)\.html/i)?.[1]
+    || value.match(/[?&]sku(?:Id)?=(\d+)/i)?.[1]
+    || '';
+}
+
 function parseProductText(text) {
   return compact({
     name: parseName(text),
@@ -208,6 +219,14 @@ function parsePrice(text) {
 
 function parseImageUrl(text) {
   return (String(text).match(/https?:\/\/[^\s，。"'<>]+\.(?:jpg|jpeg|png|webp|gif)(?:\?[^\s，。"'<>]*)?/i) || [])[0];
+}
+
+function absoluteImageUrl(value) {
+  const image = String(value || '').trim();
+  if (!image) return '';
+  if (image.startsWith('//')) return 'https:' + image;
+  if (image.startsWith('jfs/')) return 'https://img11.360buyimg.com/n1/s720x720_' + image;
+  return image;
 }
 
 function parseName(text) {
@@ -240,11 +259,55 @@ async function fetchProductPage(url) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const html = await res.text();
     const $ = cheerio.load(html);
+    const scriptName = html.match(/name\s*:\s*'([^']{5,})'/)?.[1]
+      || html.match(/name\s*:\s*"([^"]{5,})"/)?.[1];
+    const rawName = $('meta[property="og:title"]').attr('content')
+      || $('title').text().trim()
+      || scriptName
+      || $('#spec-img').attr('alt')
+      || $('meta[name="description"]').attr('content');
+    const specImage = $('#spec-img').attr('data-origin') || $('#spec-img').attr('src');
+    const listImage = html.match(/imageList\s*:\s*\[\s*"([^"]+)"/)?.[1];
+    const image = absoluteImageUrl($('meta[property="og:image"]').attr('content') || specImage || listImage || $('img').first().attr('src'));
+    const price = parsePrice(html) || await fetchJdPrice(jdSkuFromUrl(url)).catch(() => undefined);
     return compact({
-      name: $('meta[property="og:title"]').attr('content') || $('title').text().trim(),
-      image: $('meta[property="og:image"]').attr('content') || $('img').first().attr('src'),
-      price: parsePrice(html)
+      name: cleanProductName(rawName),
+      image,
+      price
     });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function cleanProductName(name) {
+  let value = String(name || '').replace(/\s+/g, ' ').trim();
+  value = value.replace(/【行情 报价 价格 评测】[-_ ]*京东.*$/i, '');
+  value = value.replace(/[-_ ]*京东\(JD\.COM\).*$/i, '');
+  value = value.replace(/[-_ ]+京东.*$/i, '');
+  value = value.replace(/^【[^】]{1,80}】/, '');
+  value = value.replace(/^京东JD\.COM提供[^，,]+[，,]/i, '');
+  return value.trim();
+}
+
+async function fetchJdPrice(sku) {
+  if (!sku) return undefined;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    const res = await fetch(`https://p.3.cn/prices/mgets?skuIds=J_${encodeURIComponent(sku)}`, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 AppleWebKit/537.36 Chrome/125 Safari/537.36',
+        'Referer': `https://item.jd.com/${sku}.html`,
+        'Accept': 'application/json, text/plain, */*'
+      }
+    });
+    if (!res.ok) return undefined;
+    const text = await res.text();
+    const json = JSON.parse(text);
+    const value = Number(json?.[0]?.p || 0);
+    return value > 0 ? value : undefined;
   } finally {
     clearTimeout(timeout);
   }

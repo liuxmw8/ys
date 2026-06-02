@@ -1482,7 +1482,8 @@ function parseNameFromText(text){
     .filter(part => part.length >= 4 && !/^https?:/i.test(part))
     .sort((a,b) => b.length - a.length)[0] || '';
 }
-function parseItemShare(){
+async function parseItemShare(){
+  if (!requireEditor('登录编辑后可以分析商品链接。')) return;
   const share = document.getElementById('newItemShare').value.trim();
   const status = document.getElementById('itemParseStatus');
   if (!share) {
@@ -1507,16 +1508,55 @@ function parseItemShare(){
       ? document.getElementById('newItemNote').value.trim() + ' ' + parsed.url
       : parsed.url;
   }
+  if (parsed.url) {
+    status.textContent = parsed.name || parsed.price ? '已初步识别，正在尝试从链接补全...' : '正在分析商品链接...';
+    status.className = 'small';
+    try{
+      const remote = await fetchProductFromServer(parsed.url || share);
+      if (remote.name && !document.getElementById('newItemName').value.trim()) document.getElementById('newItemName').value = remote.name;
+      if (remote.price && !Number(document.getElementById('newItemPrice').value || 0)) document.getElementById('newItemPrice').value = remote.price;
+      if (remote.image) {
+        document.getElementById('newItemImageUrl').value = remote.image;
+        setModalImage(remote.image, '已从链接识别图片。');
+      }
+      if (remote.name || remote.price || remote.image) {
+        const parts = [remote.name ? '名称' : '', remote.price ? '价格' : '', remote.image ? '图片' : ''].filter(Boolean);
+        status.textContent = `已从链接识别${parts.join('、')}。${remote.warning ? ' ' + remote.warning : ''}`;
+        status.className = remote.warning ? 'small warn' : 'small ok';
+        return;
+      }
+      status.textContent = remote.warning || '链接可访问，但没有识别到名称或价格，可以手动填写。';
+      status.className = 'small warn';
+      return;
+    }catch(err){
+      if (parsed.name || parsed.price) {
+        status.textContent = `已识别${parsed.name ? '名称' : ''}${parsed.name && parsed.price ? '和' : ''}${parsed.price ? '价格' : ''}，链接补全失败：${err.message}`;
+        status.className = 'small warn';
+        return;
+      }
+      status.textContent = '链接分析失败：' + err.message;
+      status.className = 'small warn';
+      return;
+    }
+  }
   if (parsed.name || parsed.price) {
     status.textContent = `已识别${parsed.name ? '名称' : ''}${parsed.name && parsed.price ? '和' : ''}${parsed.price ? '价格' : ''}。`;
     status.className = 'small ok';
-  } else if (parsed.url) {
-    status.textContent = '只识别到链接。纯链接通常无法在静态网页中跨站读取商品名和价格，请粘贴完整分享文案或手填。';
-    status.className = 'small warn';
   } else {
     status.textContent = '没有识别到名称或价格，可以手动填写。';
     status.className = 'small warn';
   }
+}
+async function fetchProductFromServer(text){
+  if (!useServerApi) throw new Error('当前不是服务器模式，无法跨站分析商品链接');
+  const res = await fetch('/api/fetch-product', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', ...authHeader() },
+    body:JSON.stringify({ text })
+  });
+  const json = await res.json().catch(()=>({}));
+  if (!res.ok) throw new Error(json.error || ('服务器分析失败：' + res.status));
+  return json;
 }
 function setModalImage(source, message = ''){
   itemModalImage = source || '';
