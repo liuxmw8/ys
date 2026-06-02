@@ -89,8 +89,9 @@ app.post('/api/fetch-product', requireEditor, async (req, res) => {
     try {
       const fetched = await fetchProductPage(url);
       Object.assign(result, compact({ ...fetched, ...result }));
-      if (jdSkuFromUrl(url) && result.name && !result.price) {
-        result.warning = '京东价格接口可能被拦截，价格请手填。';
+      if (jdSkuFromUrl(url)) {
+        if (!result.name) result.warning = '京东返回验证页或通用页，无法读取商品名，请粘贴完整分享文案或手填。';
+        else if (!result.price) result.warning = '京东价格接口可能被拦截，价格请手填。';
       }
     } catch (err) {
       result.warning = '服务器无法稳定解析该链接，可使用分享文案或手动填写。';
@@ -268,8 +269,9 @@ async function fetchProductPage(url) {
       || $('meta[name="description"]').attr('content');
     const specImage = $('#spec-img').attr('data-origin') || $('#spec-img').attr('src');
     const listImage = html.match(/imageList\s*:\s*\[\s*"([^"]+)"/)?.[1];
-    const image = absoluteImageUrl($('meta[property="og:image"]').attr('content') || specImage || listImage || $('img').first().attr('src'));
-    const price = parsePrice(html) || await fetchJdPrice(jdSkuFromUrl(url)).catch(() => undefined);
+    const sku = jdSkuFromUrl(url);
+    const image = absoluteImageUrl($('meta[property="og:image"]').attr('content') || specImage || listImage || (sku ? '' : $('img').first().attr('src')));
+    const price = parsePrice(html) || await fetchJdPrice(sku).catch(() => undefined);
     return compact({
       name: cleanProductName(rawName),
       image,
