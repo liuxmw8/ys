@@ -28,6 +28,21 @@
     .wrap { max-width:1220px; margin:0 auto; padding:24px 16px 56px; }
     header { display:flex; justify-content:space-between; gap:16px; align-items:flex-end; margin-bottom:18px; }
     h1 { margin:0; font-size:28px; letter-spacing:0; }
+    .app-title-input {
+      width:min(100%, 520px);
+      border:0;
+      border-radius:0;
+      padding:0 0 4px;
+      background:transparent;
+      color:var(--text);
+      font-size:28px;
+      font-weight:800;
+      line-height:1.25;
+    }
+    .app-title-input:focus {
+      outline:0;
+      box-shadow:inset 0 -2px 0 var(--main);
+    }
     h2 { margin:0 0 12px; font-size:20px; letter-spacing:0; }
     h3 { margin:0; font-size:16px; letter-spacing:0; }
     p { margin:8px 0 0; color:var(--muted); line-height:1.6; }
@@ -391,7 +406,7 @@
   <div class="wrap">
     <header>
       <div>
-        <h1>国宾壹号装修预算</h1>
+        <input id="appTitleInput" class="app-title-input" value="国宾壹号装修预算" maxlength="40" onblur="updateAppTitle(this.value)" onkeydown="handleTitleKey(event)" aria-label="预算标题">
         <p>按空调、净水、厨电、卫浴、智能家居、家具等用途分类比较方案，并把每类选中的方案汇总成整屋预算。</p>
       </div>
     </header>
@@ -555,6 +570,7 @@
 const STORAGE_KEY = 'renovation_budget_compare_gist_v2';
 const LEGACY_STORAGE_KEY = 'renovation_budget_compare_gist_v1';
 const CONFIG_KEY = 'renovation_budget_gist_config_v1';
+const DEFAULT_APP_TITLE = '国宾壹号装修预算';
 const DEFAULT_CATEGORIES = ['空调','净水','厨电','卫浴','智能家居','家具'];
 
 let currentTab = 'budget';
@@ -573,6 +589,7 @@ let data = normalizeData(loadLocal() || defaultData());
 function defaultData(){
   return {
     version: 2,
+    appTitle: DEFAULT_APP_TITLE,
     categories: DEFAULT_CATEGORIES.slice(),
     selections: {
       '空调':'plan-air-a',
@@ -615,6 +632,7 @@ function defaultData(){
 function uid(prefix){ return prefix + '-' + Date.now() + '-' + Math.random().toString(16).slice(2); }
 function money(n){ return new Intl.NumberFormat('zh-CN',{style:'currency',currency:'CNY',maximumFractionDigits:0}).format(Number(n||0)); }
 function signedMoney(n){ return (n >= 0 ? '+' : '-') + money(Math.abs(n)); }
+function appTitle(){ return data.appTitle || DEFAULT_APP_TITLE; }
 function esc(s){ return String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
 function jsArg(value){ return esc(JSON.stringify(value)); }
 function loadLocal(){
@@ -624,6 +642,7 @@ function canUseServerApi(){ return location.protocol !== 'file:'; }
 function normalizeData(next){
   const normalized = next && typeof next === 'object' ? next : defaultData();
   normalized.version = 2;
+  normalized.appTitle = String(normalized.appTitle || DEFAULT_APP_TITLE).trim() || DEFAULT_APP_TITLE;
   normalized.items = Array.isArray(normalized.items) ? normalized.items : [];
   normalized.plans = Array.isArray(normalized.plans) ? normalized.plans : [];
   normalized.categories = Array.isArray(normalized.categories) ? normalized.categories : DEFAULT_CATEGORIES.slice();
@@ -757,10 +776,32 @@ function selectedItemLines(){
 }
 
 function render(){
+  renderAppTitle();
   renderStats();
   renderBudget();
   renderPlans();
   renderItems();
+}
+function renderAppTitle(){
+  const title = appTitle();
+  document.title = title;
+  const input = document.getElementById('appTitleInput');
+  if (input && document.activeElement !== input) input.value = title;
+}
+function updateAppTitle(value){
+  const title = String(value || '').trim() || DEFAULT_APP_TITLE;
+  if (data.appTitle === title) {
+    renderAppTitle();
+    return;
+  }
+  data.appTitle = title;
+  save();
+}
+function handleTitleKey(event){
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    event.currentTarget.blur();
+  }
 }
 function renderStats(){
   const missing = selectedSummaries().filter(row => !row.plan).map(row => row.category);
@@ -916,6 +957,7 @@ function generateBudgetReport(){
   const total = wholeTotal();
   const planRows = selectedSummaries().filter(row => row.plan);
   const itemRows = selectedItemLines();
+  const title = appTitle();
   const width = 1080;
   const height = 360 + Math.max(1, planRows.length) * 72 + 94 + Math.max(1, itemRows.length) * 58 + 110;
   const canvas = document.createElement('canvas');
@@ -933,7 +975,7 @@ function generateBudgetReport(){
   ctx.fillStyle = '#17202a';
   ctx.font = 'bold 46px Microsoft YaHei, Arial';
   ctx.textAlign = 'left';
-  ctx.fillText('国宾壹号装修预算报告', 70, 110);
+  drawWrappedText(ctx, `${title}报告`, 70, 110, 780, 54, 1);
   ctx.font = '24px Microsoft YaHei, Arial';
   ctx.fillStyle = '#667085';
   ctx.fillText(new Date().toLocaleString('zh-CN'), 70, 150);
@@ -1000,7 +1042,7 @@ function generateBudgetReport(){
   ctx.fillStyle = '#667085';
   ctx.font = '22px Microsoft YaHei, Arial';
   ctx.textAlign = 'left';
-  ctx.fillText('由国宾壹号装修预算工具生成', 70, height - 70);
+  ctx.fillText(`由${title}工具生成`, 70, height - 70);
 
   reportImageDataUrl = canvas.toDataURL('image/png');
   document.getElementById('reportImagePreview').src = reportImageDataUrl;
@@ -1015,8 +1057,11 @@ function downloadBudgetReport(){
   if (!reportImageDataUrl) generateBudgetReport();
   const link = document.createElement('a');
   link.href = reportImageDataUrl;
-  link.download = '国宾壹号装修预算报告.png';
+  link.download = `${safeFilename(appTitle())}报告.png`;
   link.click();
+}
+function safeFilename(name){
+  return String(name || DEFAULT_APP_TITLE).replace(/[\\/:*?"<>|]/g, '').trim() || DEFAULT_APP_TITLE;
 }
 function renderPlans(){
   const sorted = categoryTotals(activeCategory);
