@@ -928,6 +928,7 @@ function normalizeData(next){
     plan.rows = Array.isArray(plan.rows) ? plan.rows : [];
     plan.category = plan.category || itemById[plan.rows[0]?.itemId]?.category || '空调';
     plan.name = plan.name || '新方案';
+    plan.directItemSelect = Boolean(plan.directItemSelect);
     plan.rows.forEach(row => {
       row.id = row.id || uid('row');
       row.itemId = row.itemId || normalized.items.find(item => item.category === plan.category)?.id || normalized.items[0]?.id || '';
@@ -1288,14 +1289,12 @@ function renderBudgetPlanRow(row){
   const lines = planItemLines(row);
   const images = lines.filter(line => line.image);
   const expanded = expandedBudgetCategory === row.category;
+  const directItemSelect = Boolean(row.plan?.directItemSelect);
   return `<section class="budget-plan-row${expanded ? ' open' : ''}" tabindex="0" onclick="toggleBudgetCategory(${jsArg(row.category)})" onkeydown="handleBudgetRowKey(event, ${jsArg(row.category)})">
     <div class="budget-plan-main">
       <strong class="budget-category">${esc(row.category)}</strong>
       <div class="budget-select-wrap" ${isEditor ? 'onclick="event.stopPropagation()"' : ''}>
-        <select ${editorDisabled()} onchange="selectBudgetPlan(${jsArg(row.category)}, this.value)">
-          <option value="">不选择</option>
-          ${plans.map(plan => `<option value="${esc(plan.id)}" ${row.plan?.id === plan.id ? 'selected' : ''}>${esc(plan.name)}</option>`).join('')}
-        </select>
+        ${directItemSelect ? renderBudgetItemSelect(row) : renderBudgetPlanSelect(row, plans)}
       </div>
       <strong class="budget-row-money">${money(row.total)}</strong>
     </div>
@@ -1305,6 +1304,20 @@ function renderBudgetPlanRow(row){
     </div>` : ''}
     ${expanded ? renderBudgetPlanDetail(lines) : ''}
   </section>`;
+}
+function renderBudgetPlanSelect(row, plans){
+  return `<select ${editorDisabled()} onchange="selectBudgetPlan(${jsArg(row.category)}, this.value)">
+    <option value="">不选择</option>
+    ${plans.map(plan => `<option value="${esc(plan.id)}" ${row.plan?.id === plan.id ? 'selected' : ''}>${esc(plan.name)}</option>`).join('')}
+  </select>`;
+}
+function renderBudgetItemSelect(row){
+  const items = data.items.filter(item => item.category === row.category);
+  const selectedItemId = row.plan?.rows?.[0]?.itemId || '';
+  return `<select ${editorDisabled()} onchange="selectBudgetItem(${jsArg(row.category)}, ${jsArg(row.plan.id)}, this.value)">
+    <option value="">不选择设备</option>
+    ${items.map(item => `<option value="${esc(item.id)}" ${item.id === selectedItemId ? 'selected' : ''}>${esc(item.name)}</option>`).join('')}
+  </select>`;
 }
 function renderBudgetPlanDetail(lines){
   return `<div class="budget-row-detail" onclick="event.stopPropagation()">
@@ -1501,6 +1514,10 @@ function renderPlanCard(plan, min){
       ${editorOnly(`<button onclick="duplicatePlan(${jsArg(plan.id)})">复制</button>`)}
       ${editorOnly(`<button class="danger" onclick="removePlan(${jsArg(plan.id)})">删除</button>`)}
     </div>
+    <label class="row small" style="margin-top:10px;align-items:center">
+      <input type="checkbox" style="width:auto;min-height:0" ${plan.directItemSelect ? 'checked' : ''} ${editorDisabled()} onchange="updatePlan(${jsArg(plan.id)}, 'directItemSelect', this.checked)">
+      <span>首页直接选择设备</span>
+    </label>
     <div class="plan-total">
       <div><div class="small">总价</div><div class="money">${money(total)}</div></div>
       <div class="small">比本类最低高 ${money(Math.max(0,total-min))}</div>
@@ -1706,6 +1723,20 @@ function selectBudgetPlan(category, planId){
   data.selections = data.selections || {};
   if (planId) data.selections[category] = planId;
   else delete data.selections[category];
+  save();
+}
+function selectBudgetItem(category, planId, itemId){
+  if (!requireEditor('登录编辑后可以修改整屋预算选择。')) return;
+  const plan = data.plans.find(next => next.id === planId && next.category === category);
+  if (!plan) return;
+  data.selections = data.selections || {};
+  data.selections[category] = plan.id;
+  if (itemId) {
+    plan.rows = [{ id:plan.rows?.[0]?.id || uid('row'), itemId, qty:1 }];
+  } else {
+    plan.rows = [];
+  }
+  expandedBudgetCategory = category;
   save();
 }
 function renderItemModalCategories(){
@@ -2020,7 +2051,11 @@ function createItemFromModal(){
     }
   }
   if (plan) {
-    plan.rows.push({ id:uid('row'), itemId:item.id, qty:1 });
+    if (plan.directItemSelect) {
+      plan.rows = [{ id:plan.rows?.[0]?.id || uid('row'), itemId:item.id, qty:1 }];
+    } else {
+      plan.rows.push({ id:uid('row'), itemId:item.id, qty:1 });
+    }
     expandedBudgetCategory = category;
   }
   itemModalPlanId = null;
@@ -2059,6 +2094,10 @@ function updatePlan(id,key,val){
     if (!data.categories.includes(val)) data.categories.push(val);
     if (data.selections?.[oldCategory] === id) delete data.selections[oldCategory];
     activeCategory = val;
+  }
+  if (key === 'directItemSelect' && val) {
+    const firstRow = plan.rows?.[0];
+    plan.rows = firstRow ? [{ ...firstRow, qty:1 }] : [];
   }
   save();
 }
