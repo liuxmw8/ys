@@ -706,13 +706,9 @@
       <div class="form-grid">
         <div class="form-field">
           <label for="editPassphrase">编辑口令</label>
-          <input id="editPassphrase" type="password" autocomplete="current-password" placeholder="请输入编辑口令" onkeydown="handleAuthKey(event)">
+          <input id="editPassphrase" type="text" autocomplete="off" placeholder="请输入编辑口令" onkeydown="handleAuthKey(event)">
         </div>
-        <label class="row small" style="align-items:center">
-          <input id="rememberEditorLogin" type="checkbox" style="width:auto;min-height:0">
-          <span>记住登录，下次打开自动进入编辑模式</span>
-        </label>
-        <div id="authModalStatus" class="status">默认只在当前浏览器会话中保持编辑权限。</div>
+        <div id="authModalStatus" class="status">登录后会保存在本机浏览器，退出编辑才清除。</div>
         <div class="row" style="justify-content:flex-end">
           <button onclick="closeAuthModal()">取消</button>
           <button class="primary" onclick="loginEditor()">登录</button>
@@ -893,9 +889,6 @@ function loadEditorCredentials(){
     return null;
   }
 }
-function hasRememberedEditorLogin(){
-  return Boolean(localStorage.getItem(EDITOR_AUTH_KEY));
-}
 function authHeader(){
   if (!editorCredentials?.passphrase) return {};
   return { Authorization:'Basic ' + btoa(unescape(encodeURIComponent(':' + editorCredentials.passphrase))) };
@@ -1039,10 +1032,9 @@ function renderAuthState(){
 function openAuthModal(message = ''){
   const backdrop = document.getElementById('authModalBackdrop');
   if (!backdrop) return;
-  document.getElementById('authModalStatus').textContent = message || '默认只在当前浏览器会话中保持编辑权限。';
+  document.getElementById('authModalStatus').textContent = message || '登录后会保存在本机浏览器，退出编辑才清除。';
   document.getElementById('authModalStatus').className = message ? 'status warn' : 'status';
   document.getElementById('editPassphrase').value = editorCredentials?.passphrase || '';
-  document.getElementById('rememberEditorLogin').checked = hasRememberedEditorLogin();
   backdrop.classList.remove('hidden');
   setTimeout(() => document.getElementById('editPassphrase').focus(), 0);
 }
@@ -1059,7 +1051,6 @@ function handleAuthKey(event){
 }
 async function loginEditor(){
   const passphrase = document.getElementById('editPassphrase').value.trim();
-  const remember = document.getElementById('rememberEditorLogin').checked;
   const status = document.getElementById('authModalStatus');
   if (!passphrase) {
     status.textContent = '请填写编辑口令。';
@@ -1078,8 +1069,7 @@ async function loginEditor(){
     editorCredentials = nextCredentials;
     const serialized = JSON.stringify(editorCredentials);
     sessionStorage.setItem(EDITOR_AUTH_KEY, serialized);
-    if (remember) localStorage.setItem(EDITOR_AUTH_KEY, serialized);
-    else localStorage.removeItem(EDITOR_AUTH_KEY);
+    localStorage.setItem(EDITOR_AUTH_KEY, serialized);
     isEditor = true;
     closeAuthModal();
     render();
