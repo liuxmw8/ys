@@ -748,14 +748,6 @@
           <input id="newItemNote" placeholder="品牌、安装、购买渠道等">
         </div>
         <div class="form-field">
-          <label for="newItemShare">京东/淘宝分享链接或分享文案</label>
-          <textarea id="newItemShare" onpaste="setTimeout(parseItemShare, 0)" placeholder="可粘贴京东、淘宝的分享文案；如果只粘贴纯链接，部分平台会因跨站限制无法自动拿到名称和价格"></textarea>
-          <div class="row" style="margin-top:8px">
-            <button onclick="parseItemShare()">分析填入</button>
-            <span id="itemParseStatus" class="small"></span>
-          </div>
-        </div>
-        <div class="form-field">
           <label for="newItemImageUrl">设备图片</label>
           <div class="image-tools">
             <input id="newItemImageUrl" placeholder="图片链接，例如 https://...jpg" onchange="setModalImageFromUrl()">
@@ -1738,14 +1730,12 @@ function openItemModal(planId = null){
   if (plan) activeCategory = plan.category;
   renderItemModalCategories();
   document.getElementById('itemModalTitle').textContent = plan ? '新增设备价格并加入方案' : '新增设备';
-  document.getElementById('newItemShare').value = '';
   document.getElementById('newItemImageUrl').value = '';
   document.getElementById('newItemImageFile').value = '';
   document.getElementById('newItemName').value = '';
   document.getElementById('newItemCategory').value = activeCategory;
   document.getElementById('newItemPrice').value = '';
   document.getElementById('newItemNote').value = '';
-  document.getElementById('itemParseStatus').textContent = '';
   document.getElementById('itemImageStatus').textContent = '';
   updateImagePreview('');
   document.getElementById('itemModalBackdrop').classList.remove('hidden');
@@ -2028,7 +2018,7 @@ function createItemFromModal(){
   if (!data.categories.includes(category)) data.categories.push(category);
   activeCategory = category;
   const image = itemModalImage || document.getElementById('newItemImageUrl').value.trim();
-  const item = { id:uid('item'), name, category, unitPrice, note, link:extractFirstUrl(document.getElementById('newItemShare').value), image };
+  const item = { id:uid('item'), name, category, unitPrice, note, image };
   data.items.push(item);
   const plan = data.plans.find(next => next.id === itemModalPlanId);
   if (plan) {
