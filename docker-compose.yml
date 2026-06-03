@@ -6,8 +6,7 @@ services:
     ports:
       - "${APP_PORT:-3000}:3000"
     environment:
-      APP_USERNAME: "${APP_USERNAME:-gbyh}"
-      APP_PASSWORD: "${APP_PASSWORD:-}"
+      APP_PASSPHRASE: "${APP_PASSPHRASE:-gbyh}"
       DATA_DIR: /app/runtime
       PORT: 3000
     volumes:

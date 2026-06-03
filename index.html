@@ -705,12 +705,8 @@
       </div>
       <div class="form-grid">
         <div class="form-field">
-          <label for="editUsername">用户名</label>
-          <input id="editUsername" autocomplete="username" placeholder="请输入用户名">
-        </div>
-        <div class="form-field">
-          <label for="editPassword">密码</label>
-          <input id="editPassword" type="password" autocomplete="current-password" placeholder="请输入密码" onkeydown="handleAuthKey(event)">
+          <label for="editPassphrase">编辑口令</label>
+          <input id="editPassphrase" type="password" autocomplete="current-password" placeholder="请输入编辑口令" onkeydown="handleAuthKey(event)">
         </div>
         <label class="row small" style="align-items:center">
           <input id="rememberEditorLogin" type="checkbox" style="width:auto;min-height:0">
@@ -886,9 +882,13 @@ function editorOnly(html){ return isEditor ? html : ''; }
 function editHint(){ return isEditor ? '' : '<div class="small warn" style="margin-top:10px">当前为公开查看模式。登录编辑后可以修改和保存。</div>'; }
 function loadEditorCredentials(){
   try {
-    return JSON.parse(localStorage.getItem(EDITOR_AUTH_KEY))
+    const saved = JSON.parse(localStorage.getItem(EDITOR_AUTH_KEY))
       || JSON.parse(sessionStorage.getItem(EDITOR_AUTH_KEY))
       || null;
+    if (!saved) return null;
+    if (saved.passphrase) return saved;
+    if (saved.username) return { passphrase:saved.username };
+    return null;
   } catch {
     return null;
   }
@@ -897,8 +897,8 @@ function hasRememberedEditorLogin(){
   return Boolean(localStorage.getItem(EDITOR_AUTH_KEY));
 }
 function authHeader(){
-  if (!editorCredentials?.username || !editorCredentials?.password) return {};
-  return { Authorization:'Basic ' + btoa(unescape(encodeURIComponent(editorCredentials.username + ':' + editorCredentials.password))) };
+  if (!editorCredentials?.passphrase) return {};
+  return { Authorization:'Basic ' + btoa(unescape(encodeURIComponent(':' + editorCredentials.passphrase))) };
 }
 function requireEditor(message = '请先登录编辑账号。'){
   if (isEditor) return true;
@@ -1041,11 +1041,10 @@ function openAuthModal(message = ''){
   if (!backdrop) return;
   document.getElementById('authModalStatus').textContent = message || '默认只在当前浏览器会话中保持编辑权限。';
   document.getElementById('authModalStatus').className = message ? 'status warn' : 'status';
-  document.getElementById('editUsername').value = editorCredentials?.username || '';
-  document.getElementById('editPassword').value = editorCredentials?.password || '';
+  document.getElementById('editPassphrase').value = editorCredentials?.passphrase || '';
   document.getElementById('rememberEditorLogin').checked = hasRememberedEditorLogin();
   backdrop.classList.remove('hidden');
-  setTimeout(() => document.getElementById(editorCredentials?.username ? 'editPassword' : 'editUsername').focus(), 0);
+  setTimeout(() => document.getElementById('editPassphrase').focus(), 0);
 }
 function closeAuthModal(event){
   const backdrop = document.getElementById('authModalBackdrop');
@@ -1059,24 +1058,23 @@ function handleAuthKey(event){
   }
 }
 async function loginEditor(){
-  const username = document.getElementById('editUsername').value.trim();
-  const password = document.getElementById('editPassword').value;
+  const passphrase = document.getElementById('editPassphrase').value.trim();
   const remember = document.getElementById('rememberEditorLogin').checked;
   const status = document.getElementById('authModalStatus');
-  if (!username || !password) {
-    status.textContent = '请填写用户名和密码。';
+  if (!passphrase) {
+    status.textContent = '请填写编辑口令。';
     status.className = 'status warn';
     return;
   }
   status.textContent = '正在验证...';
   status.className = 'status';
-  const nextCredentials = { username, password };
+  const nextCredentials = { passphrase };
   try{
     const res = await fetch('/api/auth/check', {
-      headers:{ Authorization:'Basic ' + btoa(unescape(encodeURIComponent(username + ':' + password))) }
+      headers:{ Authorization:'Basic ' + btoa(unescape(encodeURIComponent(':' + passphrase))) }
     });
     const json = await res.json().catch(()=>({}));
-    if (!res.ok) throw new Error(json.error || '账号或密码不正确');
+    if (!res.ok) throw new Error(json.error || '编辑口令不正确');
     editorCredentials = nextCredentials;
     const serialized = JSON.stringify(editorCredentials);
     sessionStorage.setItem(EDITOR_AUTH_KEY, serialized);

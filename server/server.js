@@ -13,8 +13,7 @@ const dataDir = process.env.DATA_DIR || path.join(rootDir, 'runtime');
 const uploadDir = process.env.UPLOAD_DIR || path.join(dataDir, 'uploads');
 const dataFile = process.env.DATA_FILE || path.join(dataDir, 'budget-data.json');
 const port = Number(process.env.PORT || 3000);
-const appUsername = process.env.APP_USERNAME || 'gbyh';
-const appPassword = process.env.APP_PASSWORD || 'qwe123';
+const appPassphrase = process.env.APP_PASSPHRASE || 'gbyh';
 
 await fs.mkdir(dataDir, { recursive: true });
 await fs.mkdir(uploadDir, { recursive: true });
@@ -176,15 +175,14 @@ function safeExt(name, mime) {
 }
 
 function requireEditor(req, res, next) {
-  if (!appPassword) return next();
+  if (!appPassphrase) return next();
   const header = req.headers.authorization || '';
   const [scheme, encoded] = header.split(' ');
   if (scheme !== 'Basic' || !encoded) return authRequired(res);
   const decoded = Buffer.from(encoded, 'base64').toString('utf8');
   const split = decoded.indexOf(':');
-  const username = split >= 0 ? decoded.slice(0, split) : '';
-  const password = split >= 0 ? decoded.slice(split + 1) : '';
-  if (username !== appUsername || password !== appPassword) return authRequired(res);
+  const passphrase = split >= 0 ? decoded.slice(split + 1) : decoded;
+  if (passphrase !== appPassphrase) return authRequired(res);
   next();
 }
 
