@@ -813,6 +813,7 @@ let activeCategory = '空调';
 let autoPushTimer = null;
 let budgetDetailsOpen = false;
 let itemModalPlanId = null;
+let itemModalUseBudgetSelection = false;
 let itemModalImage = '';
 let editingImageItemId = null;
 let editingItemImage = '';
@@ -1271,7 +1272,7 @@ function renderBudget(){
           <div class="budget-hero">${money(total)}</div>
         </div>
         <div class="row">
-          <button class="primary" onclick="${isEditor ? 'openItemModal()' : `openAuthModal(${jsArg('登录编辑后可以快速添加设备项目。')})`}">快速添加设备项目</button>
+          <button class="primary" onclick="${isEditor ? 'openItemModal(null, true)' : `openAuthModal(${jsArg('登录编辑后可以快速添加设备项目。')})`}">快速添加设备项目</button>
           <button onclick="generateBudgetReport()">生成报告图片</button>
           <button onclick="${isEditor ? "switchTab('plans')" : `openAuthModal(${jsArg('登录编辑后可以修改分类方案。')})`}">${isEditor ? '编辑分类方案' : '登录编辑'}</button>
         </div>
@@ -1710,14 +1711,15 @@ function selectBudgetPlan(category, planId){
 function renderItemModalCategories(){
   document.getElementById('newItemCategory').innerHTML = categories().map(category => `<option value="${esc(category)}" ${category === activeCategory ? 'selected' : ''}>${esc(category)}</option>`).join('');
 }
-function openItemModal(planId = null){
+function openItemModal(planId = null, useBudgetSelection = false){
   if (!requireEditor('登录编辑后可以新增设备。')) return;
   const plan = data.plans.find(next => next.id === planId);
   itemModalPlanId = plan?.id || null;
+  itemModalUseBudgetSelection = Boolean(useBudgetSelection);
   itemModalImage = '';
   if (plan) activeCategory = plan.category;
   renderItemModalCategories();
-  document.getElementById('itemModalTitle').textContent = plan ? '新增设备价格并加入方案' : '新增设备';
+  document.getElementById('itemModalTitle').textContent = plan || itemModalUseBudgetSelection ? '新增设备价格并加入方案' : '新增设备';
   document.getElementById('newItemImageUrl').value = '';
   document.getElementById('newItemImageFile').value = '';
   document.getElementById('newItemName').value = '';
@@ -1733,6 +1735,7 @@ function closeItemModal(event){
   const backdrop = document.getElementById('itemModalBackdrop');
   if (event && event.target !== backdrop) return;
   itemModalPlanId = null;
+  itemModalUseBudgetSelection = false;
   backdrop.classList.add('hidden');
 }
 function extractFirstUrl(text){
@@ -2008,11 +2011,20 @@ function createItemFromModal(){
   const image = itemModalImage || document.getElementById('newItemImageUrl').value.trim();
   const item = { id:uid('item'), name, category, unitPrice, note, image };
   data.items.push(item);
-  const plan = data.plans.find(next => next.id === itemModalPlanId);
+  let plan = data.plans.find(next => next.id === itemModalPlanId);
+  if (!plan && itemModalUseBudgetSelection) {
+    plan = selectedPlan(category) || plansByCategory(category)[0];
+    if (plan) {
+      data.selections = data.selections || {};
+      data.selections[category] = plan.id;
+    }
+  }
   if (plan) {
     plan.rows.push({ id:uid('row'), itemId:item.id, qty:1 });
+    expandedBudgetCategory = category;
   }
   itemModalPlanId = null;
+  itemModalUseBudgetSelection = false;
   document.getElementById('itemModalBackdrop').classList.add('hidden');
   save();
 }
