@@ -160,6 +160,21 @@
     .item-line:last-child { border-bottom:0; }
     .item-line strong { font-size:16px; }
     .item-line-main { display:flex; gap:10px; align-items:flex-start; min-width:0; }
+    .item-line.paid { opacity:.76; }
+    .item-paid-control {
+      display:flex;
+      justify-content:flex-end;
+      align-items:center;
+      gap:6px;
+      color:var(--muted);
+      font-size:13px;
+      white-space:nowrap;
+    }
+    .item-paid-control input {
+      width:auto;
+      min-height:0;
+      box-shadow:none;
+    }
     .detail-thumb {
       width:48px;
       height:48px;
@@ -321,6 +336,33 @@
       font-weight:900;
       line-height:1.1;
     }
+    .budget-metrics {
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:10px;
+      margin-bottom:14px;
+    }
+    .budget-metric {
+      border:1px solid var(--line);
+      border-radius:8px;
+      padding:12px;
+      background:#f8fafc;
+    }
+    .budget-metric .label {
+      color:var(--muted);
+      font-size:13px;
+      font-weight:650;
+    }
+    .budget-metric .value {
+      margin-top:6px;
+      color:var(--main);
+      font-size:24px;
+      font-weight:850;
+      line-height:1.15;
+      overflow-wrap:anywhere;
+    }
+    .budget-metric.spent .value { color:var(--ok); }
+    .budget-metric.remaining .value { color:var(--danger); }
     .budget-hints {
       display:grid;
       grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);
@@ -539,6 +581,19 @@
       }
       .budget-hero { font-size:32px; }
       .budget-hints { grid-template-columns:1fr; }
+      .budget-metrics {
+        grid-template-columns:repeat(3,minmax(0,1fr));
+        gap:6px;
+      }
+      .budget-metric {
+        padding:9px 7px;
+      }
+      .budget-metric .label {
+        font-size:12px;
+      }
+      .budget-metric .value {
+        font-size:17px;
+      }
       .budget-plan-list { gap:7px; }
       .budget-plan-main {
         grid-template-columns:64px minmax(0,1fr) 84px;
@@ -675,7 +730,6 @@
     <header class="flex flex-col gap-3 border-b border-budget-line/80 md:flex-row md:items-end md:justify-between">
       <div class="min-w-0">
         <input id="appTitleInput" class="app-title-input" value="国宾壹号装修预算" maxlength="40" onfocus="handleTitleFocus(event)" onblur="updateAppTitle(this.value)" onkeydown="handleTitleKey(event)" aria-label="预算标题">
-        <p class="max-w-3xl text-sm leading-6 text-budget-muted">按空调、净水、厨电、卫浴、智能家居、家具等用途分类比较方案，并把每类选中的方案汇总成整屋预算。</p>
       </div>
       <div class="row md:justify-end">
         <span id="editModeStatus" class="auth-status">公开查看</span>
@@ -933,6 +987,7 @@ function normalizeData(next){
       row.id = row.id || uid('row');
       row.itemId = row.itemId || normalized.items.find(item => item.category === plan.category)?.id || normalized.items[0]?.id || '';
       row.qty = Number(row.qty || 0);
+      row.paid = Boolean(row.paid);
     });
   });
 
@@ -1116,12 +1171,15 @@ function selectedItemLines(){
       const unitPrice = Number(item?.unitPrice || 0);
       return {
         category: summary.category,
+        planId: summary.plan.id,
+        rowId: row.id,
         planName: summary.plan.name,
         itemName: item?.name || '未命名设备',
         image: item?.image || '',
         qty,
         unitPrice,
-        total: unitPrice * qty
+        total: unitPrice * qty,
+        paid: Boolean(row.paid)
       };
     }))
     .filter(line => line.total > 0)
@@ -1137,12 +1195,15 @@ function planItemLines(summary){
       const unitPrice = Number(item?.unitPrice || 0);
       return {
         category: summary.category,
+        planId: summary.plan.id,
+        rowId: row.id,
         planName: summary.plan.name,
         itemName: item?.name || '未命名设备',
         image: item?.image || '',
         qty,
         unitPrice,
-        total: unitPrice * qty
+        total: unitPrice * qty,
+        paid: Boolean(row.paid)
       };
     })
     .filter(line => line.total > 0)
@@ -1265,18 +1326,31 @@ function renderCategoryTabs(){
 function renderBudget(){
   const rows = selectedSummaries();
   const total = wholeTotal();
+  const spent = selectedItemLines().filter(line => line.paid).reduce((sum, line) => sum + line.total, 0);
+  const remaining = Math.max(0, total - spent);
   document.getElementById('budgetView').innerHTML = `
     <section class="card">
       <div class="budget-head">
-        <div>
-          <div class="small">整屋预算</div>
-          <div class="budget-hero">${money(total)}</div>
+        <h2>整屋预算</h2>
+      </div>
+      <div class="budget-metrics">
+        <div class="budget-metric">
+          <div class="label">总预算</div>
+          <div class="value">${money(total)}</div>
         </div>
-        <div class="row">
-          <button class="primary" onclick="${isEditor ? 'openItemModal(null, true)' : `openAuthModal(${jsArg('登录编辑后可以快速添加设备项目。')})`}">快速添加设备项目</button>
-          <button onclick="generateBudgetReport()">生成报告图片</button>
-          <button onclick="${isEditor ? "switchTab('plans')" : `openAuthModal(${jsArg('登录编辑后可以修改分类方案。')})`}">${isEditor ? '编辑分类方案' : '登录编辑'}</button>
+        <div class="budget-metric spent">
+          <div class="label">已花费</div>
+          <div class="value">${money(spent)}</div>
         </div>
+        <div class="budget-metric remaining">
+          <div class="label">还要花多少</div>
+          <div class="value">${money(remaining)}</div>
+        </div>
+      </div>
+      <div class="row" style="margin-bottom:12px">
+        <button class="primary" onclick="${isEditor ? 'openItemModal(null, true)' : `openAuthModal(${jsArg('登录编辑后可以快速添加设备项目。')})`}">快速添加设备项目</button>
+        <button onclick="generateBudgetReport()">生成报告图片</button>
+        <button onclick="${isEditor ? "switchTab('plans')" : `openAuthModal(${jsArg('登录编辑后可以修改分类方案。')})`}">${isEditor ? '编辑分类方案' : '登录编辑'}</button>
       </div>
       <div class="budget-plan-list">
         ${rows.map(row => renderBudgetPlanRow(row)).join('')}
@@ -1322,7 +1396,7 @@ function renderBudgetItemSelect(row){
 function renderBudgetPlanDetail(lines){
   return `<div class="budget-row-detail" onclick="event.stopPropagation()">
     ${lines.length ? `<div class="item-lines">${lines.map(line => `
-      <div class="item-line">
+      <div class="item-line${line.paid ? ' paid' : ''}">
         <div class="item-line-main">
           ${line.image ? `<img class="detail-thumb" src="${esc(line.image)}" alt="${esc(line.itemName)}">` : ''}
           <div>
@@ -1330,7 +1404,13 @@ function renderBudgetPlanDetail(lines){
             <div class="item-meta">${line.qty !== 1 ? `数量 ${line.qty}` : '单项设备'}</div>
           </div>
         </div>
-        <strong>${money(line.total)}</strong>
+        <div>
+          <strong>${money(line.total)}</strong>
+          <label class="item-paid-control">
+            <input type="checkbox" ${line.paid ? 'checked' : ''} ${editorDisabled()} onchange="updateRowPaid(${jsArg(line.planId)}, ${jsArg(line.rowId)}, this.checked)">
+            <span>已支付</span>
+          </label>
+        </div>
       </div>
     `).join('')}</div>` : '<div class="empty">这个方案还没有已计价设备。</div>'}
   </div>`;
@@ -1732,7 +1812,7 @@ function selectBudgetItem(category, planId, itemId){
   data.selections = data.selections || {};
   data.selections[category] = plan.id;
   if (itemId) {
-    plan.rows = [{ id:plan.rows?.[0]?.id || uid('row'), itemId, qty:1 }];
+    plan.rows = [{ id:plan.rows?.[0]?.id || uid('row'), itemId, qty:1, paid:false }];
   } else {
     plan.rows = [];
   }
@@ -2060,9 +2140,9 @@ function createItemFromModal(){
   }
   if (plan) {
     if (plan.directItemSelect) {
-      plan.rows = [{ id:plan.rows?.[0]?.id || uid('row'), itemId:item.id, qty:1 }];
+      plan.rows = [{ id:plan.rows?.[0]?.id || uid('row'), itemId:item.id, qty:1, paid:false }];
     } else {
-      plan.rows.push({ id:uid('row'), itemId:item.id, qty:1 });
+      plan.rows.push({ id:uid('row'), itemId:item.id, qty:1, paid:false });
     }
     expandedBudgetCategory = category;
   }
@@ -2133,7 +2213,7 @@ function addRow(planId){
   const plan = data.plans.find(next => next.id === planId);
   if (!plan) return;
   const firstItem = data.items.find(item => item.category === plan.category) || data.items[0];
-  plan.rows.push({ id:uid('row'), itemId:firstItem?.id || '', qty:1 });
+  plan.rows.push({ id:uid('row'), itemId:firstItem?.id || '', qty:1, paid:false });
   save();
 }
 function updateRow(planId,rowId,key,val){
@@ -2142,6 +2222,14 @@ function updateRow(planId,rowId,key,val){
   const row = plan?.rows.find(next => next.id === rowId);
   if (!row) return;
   row[key] = val;
+  save();
+}
+function updateRowPaid(planId,rowId,paid){
+  if (!requireEditor()) return;
+  const plan = data.plans.find(next => next.id === planId);
+  const row = plan?.rows.find(next => next.id === rowId);
+  if (!row) return;
+  row.paid = Boolean(paid);
   save();
 }
 function removeRow(planId,rowId){
