@@ -2045,10 +2045,18 @@ function createItemFromModal(){
   let plan = data.plans.find(next => next.id === itemModalPlanId);
   if (!plan && itemModalUseBudgetSelection) {
     plan = selectedPlan(category) || plansByCategory(category)[0];
-    if (plan) {
-      data.selections = data.selections || {};
-      data.selections[category] = plan.id;
+    if (!plan) {
+      plan = {
+        id:uid('plan'),
+        category,
+        name:category + '方案',
+        directItemSelect:false,
+        rows:[]
+      };
+      data.plans.push(plan);
     }
+    data.selections = data.selections || {};
+    data.selections[category] = plan.id;
   }
   if (plan) {
     if (plan.directItemSelect) {
